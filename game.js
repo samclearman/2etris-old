@@ -16,20 +16,17 @@ function game() {
 	var lastFrame = new Date().getTime();
 	
 	var entities = [];
-	entities.push({
-		drawOn: function(ct) {
-			ct.fillStyle = "white";
-			ct.fillRect(0,0,390,400);
-			// ct.fillStyle = "grey";
-			// ct.fillRect(390,0,20,400);
-			ct.fillStyle = "black";
-			ct.fillRect(410,0,400,400);
-		},
-		update: function(delta) { }
-	})
-	entities.push(new block(410,320))
-	entities.push(new block(310,100))
-	entities.push(new block(390,220,undefined,"white","NE"))
+	var layers = {
+		bgShadows: {z: 0, drawings: []},
+		bgBlocks: {z: 1, drawings: []},
+		shadows: {z: 2, drawings: []},
+		blocks: {z: 3, drawings: []}
+	}
+	
+	entities.push(new grid());
+	// entities.push(new block(420,300));
+	entities.push(new block(320,100));
+	entities.push(new block(400,220,undefined,"white","NE"));
 	
 	function update(delta) {
 		
@@ -45,9 +42,17 @@ function game() {
 				
 	}
 
-	function redraw() {
+	function draw() {
 		for(var i = 0; i < entities.length; i++) {
-			entities[i].drawOn(ctx);
+			entities[i].drawOn(layers);
+		}
+	}
+	
+	function render() {
+		for (var layerName in layers) {
+			for (var i=0; i < layers[layerName].drawings.length; i++) {
+				layers[layerName].drawings[i](ctx);
+			}
 		}
 	}
 
@@ -55,7 +60,8 @@ function game() {
 		now = new Date().getTime();
 		delta = (now - lastFrame) / 1000;
 		update(delta);
-		redraw();
+		draw();
+		render();
 		lastFrame = now;
 	}
 	
@@ -73,11 +79,24 @@ function grid() {
 
 grid.prototype.update = function() {}
 
-grid.prototype.drawOn = function(ctx) {
-	
+grid.prototype.drawOn = function(layers) {
+	for(var row=0; row < this.state.length; row++) {
+		for (var col = 0; col < this.state[row].length; col ++) {
+			if (this.state[row][col] == 0) {
+				color = "black"
+				shadow = "SW"
+				offset = {x: SHADOW_SIZE, y: 0}
+			} else {
+				color = "white"
+				shadow = "NE"
+				offset = {x: 0, y: SHADOW_SIZE}
+			}
+			new block((col * 100) + offset.x, (row * 100) + offset.y, 0, color, shadow, "bgBlocks", "bgShadows").drawOn(layers);
+		}
+	}
 }
 
-function block(x,y,velocity,color, shadowDirection) {
+function block(x,y,velocity,color, shadowDirection, blockLayer, shadowLayer) {
 	this.x = x || 0;
 	this.y = y || 0;
 	this.width = BLOCK_SIZE;
@@ -85,6 +104,8 @@ function block(x,y,velocity,color, shadowDirection) {
 	this.color = color || "black";
 	this.shadowDirection = shadowDirection || "SW";
 	this.velocity = velocity || {x: 0, y: 0};
+	this.blockLayer = blockLayer || "blocks";
+	this.shadowLayer = shadowLayer || "shadows";
 };
 
 block.prototype.NW = function() {
@@ -124,15 +145,20 @@ block.prototype.update = function(delta) {
 	this.y += delta * this.velocity.y
 };
 
-block.prototype.drawOn = function(ctx) {
-	ctx.fillStyle = SHADOW_COLOR;
-	ctx.beginPath();
-	var pts = this.shadowPoints();
-	ctx.moveTo(pts[0].x, pts[0].y);
-	for(var i=1; i<pts.length; i++) {
-		ctx.lineTo(pts[i].x, pts[i].y);
-	}
-	ctx.fill();
-	ctx.fillStyle = this.color;
-	ctx.fillRect(this.x, this.y, this.width, this.height);
+block.prototype.drawOn = function(layers) {
+	var that = this;
+	layers[this.shadowLayer].drawings.push(function(ctx) {
+		ctx.fillStyle = SHADOW_COLOR;
+		ctx.beginPath();
+		var pts = that.shadowPoints();
+		ctx.moveTo(pts[0].x, pts[0].y);
+		for(var i=1; i<pts.length; i++) {
+			ctx.lineTo(pts[i].x, pts[i].y);
+		}
+		ctx.fill();
+	});
+	layers[this.blockLayer].drawings.push(function(ctx) {	
+		ctx.fillStyle = that.color;
+		ctx.fillRect(that.x, that.y, that.width, that.height);
+	});
 };
