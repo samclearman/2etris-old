@@ -5,7 +5,6 @@ function addPts(p,q) {
     return({x: p.x + q.x, y: p.y + q.y})
 }
 
-
 function game() {
     
     var canvas = document.getElementById('game');
@@ -20,10 +19,13 @@ function game() {
     
     var g = new grid();
     entities.push(g);
+    
     tetromino.prototype.grid = function() { return g; };
-    entities.push(new tetromino(false,false,false,{x: 0, y: 10}));
-    // entities.push(new block(320,100));
-    // entities.push(new block(400,220,undefined,"white","NE"));
+    tetromino.generate = function(color) {
+        entities.push(new tetromino(false,5*BLOCK_SIZE,false,{x: 0, y: 20}));
+    };
+    
+    tetromino.generate("black");
     
     function update(delta) {
         
@@ -142,6 +144,7 @@ grid.prototype.checkCollisions = function(piece) {
     return false;
 }
 
+grid.prototype.freeze = function(piece) { };
 
 /****************************
 *                           *
@@ -174,7 +177,6 @@ block.prototype.SE = function() {
     return {x: this.screenX() + this.width, y: this.screenY() + this.height};
 };
 
-
 block.prototype.update = function(delta) { };
 
 block.prototype.drawOn = function(layers) {
@@ -200,7 +202,7 @@ function tetromino(shape, x, y, velocity, color) {
     this.height = BLOCK_SIZE;
     this.color = color || "black";
     this.velocity = velocity || {x: 0, y: 0};
-    this.shape = shape || [[-1,-1],[0,0],[0,1],[1,0]]
+    this.shape = shape || [[-1,0],[0,0],[0,1],[1,0]]
     this.blocks = []
     for(var i=0; i < this.shape.length; i++) {
         blk = new block(this.x + (this.shape[i][0] * BLOCK_SIZE) , this.y + (this.shape[i][1] * BLOCK_SIZE) ,color)
@@ -216,6 +218,11 @@ tetromino.prototype.positionBlocks = function() {
 }
 
 tetromino.prototype.update = function(delta) {
+    if (this.frozen && new Date().getTime() - this.frozen > 2000) {
+        this.grid().freeze(this);
+        this.destroy();
+    }
+    
     this.x += this.velocity.x * delta;
     this.y += this.velocity.y * delta;
     this.positionBlocks();
@@ -233,5 +240,10 @@ tetromino.prototype.drawOn = function(layers) {
     for (var i=0; i < this.blocks.length; i++) {
         this.blocks[i].drawOn(layers);
     }
+}
+
+tetromino.prototype.destroy = function() {
+    this.destroyed = true;
+    tetromino.generate(this.color);
 }
 
