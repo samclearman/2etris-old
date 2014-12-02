@@ -135,7 +135,7 @@ grid.prototype.checkCollisions = function(piece) {
     for (var i = 0; i < piece.blocks.length; i++) {
         for (corner of ["NW","NE","SW","SE"]) {
             row = Math.floor(piece.blocks[i][corner]().y / BLOCK_SIZE);
-            col = Math.floor((piece.blocks[i][corner]().x + piece.blocks[i].width) / BLOCK_SIZE);
+            col = Math.floor(piece.blocks[i][corner]().x / BLOCK_SIZE);
             if (this.state[row][col] == pieceType) {
                 return true;
             }
@@ -144,7 +144,14 @@ grid.prototype.checkCollisions = function(piece) {
     return false;
 }
 
-grid.prototype.freeze = function(piece) { };
+grid.prototype.freeze = function(piece) {
+    var pieceType = piece.color == "black" ? 0 : 1;
+    for (var i = 0; i < piece.blocks.length; i++) {
+        row = Math.floor(piece.blocks[i].center().y / BLOCK_SIZE);
+        col = Math.floor(piece.blocks[i].center().x / BLOCK_SIZE);
+        this.state[row][col] = pieceType;
+    }
+};
 
 /****************************
 *                           *
@@ -175,6 +182,11 @@ block.prototype.SW = function() {
 };
 block.prototype.SE = function() {
     return {x: this.screenX() + this.width, y: this.screenY() + this.height};
+};
+
+block.prototype.center = function() {
+    return {x: this.screenX() + (this.width / 2),
+            y: this.screenY() + (this.height / 2)};
 };
 
 block.prototype.update = function(delta) { };
