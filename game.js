@@ -115,7 +115,7 @@ function grid() {
                   [0,0,0,0,0,0,0,0,0,0,0]];
 }
 
-grid.prototype.update = function() {}
+grid.prototype.update = function(delta) {}
 
 grid.prototype.drawOn = function(layers) {
     for(var row=0; row < this.state.length; row++) {
@@ -195,7 +195,9 @@ block.prototype.drawOn = function(layers) {
     var that = this;
     layers[this.blockLayer].drawings.push(function(ctx) {   
         ctx.fillStyle = that.color;
+        // ctx.strokeStyle = that.color;
         ctx.fillRect(that.screenX(), that.screenY(), that.width, that.height);
+        // ctx.strokeRect(that.screenX(), that.screenY(), that.width, that.height);
     });
 };
 
@@ -224,8 +226,8 @@ function tetromino(shape, x, y, velocity, color) {
 
 tetromino.prototype.positionBlocks = function() {
     for(var i=0; i < this.blocks.length; i++) {
-        this.blocks[i].x = this.x + (this.shape[i][0] * BLOCK_SIZE);
-        this.blocks[i].y = this.y + (this.shape[i][1] * BLOCK_SIZE);
+        this.blocks[i].x = Math.floor(this.x) + (this.shape[i][0] * BLOCK_SIZE);
+        this.blocks[i].y = Math.floor(this.y) + (this.shape[i][1] * BLOCK_SIZE);
     }
 }
 
