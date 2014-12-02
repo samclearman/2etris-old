@@ -130,15 +130,12 @@ grid.prototype.drawOn = function(layers) {
 
 grid.prototype.checkCollisions = function(piece) {
     var pieceType = piece.color == "black" ? 0 : 1;
-    if (pieceType == 0) {
-        for (var i = 0; i < piece.blocks.length; i++) {
-            row = Math.floor(piece.blocks[i].y / BLOCK_SIZE);
-            col = Math.floor((piece.blocks[i].x + piece.blocks[i].width) / BLOCK_SIZE);
-            if (0 <= row && row < this.rows && 0 <= col && col < this.cols) {
-                if (this.state[row][col] == 0) {
-                    piece.x -= ((piece.blocks[i].x + piece.blocks[i].width) - (col * BLOCK_SIZE));
-                    return true;
-                }
+    for (var i = 0; i < piece.blocks.length; i++) {
+        for (corner of ["NW","NE","SW","SE"]) {
+            row = Math.floor(piece.blocks[i][corner]().y / BLOCK_SIZE);
+            col = Math.floor((piece.blocks[i][corner]().x + piece.blocks[i].width) / BLOCK_SIZE);
+            if (this.state[row][col] == pieceType) {
+                return true;
             }
         }
     }
@@ -222,15 +219,14 @@ tetromino.prototype.update = function(delta) {
     this.x += this.velocity.x * delta;
     this.y += this.velocity.y * delta;
     this.positionBlocks();
+    
     if (this.grid().checkCollisions(this)) {
+        this.x -= this.velocity.x * delta;
+        this.y -= this.velocity.y * delta;
         this.frozen = this.frozen || new Date().getTime();
     } else {
         this.frozen = false;
-    }
-    for (var i=0; i < this.blocks.length; i++) {
-        this.blocks[i].update(delta);
-        
-    }
+    } 
 }
 
 tetromino.prototype.drawOn = function(layers) {
