@@ -3,6 +3,8 @@ var FREEZE_DELAY = 1;
 var TURBO_MULTIPLIER = 4;
 var RUNNING = true;
 
+var CONTROLS = {black: {turn: 87, left: 64, right: 68, turbo: 83},
+                white: {turn: 40, left: 37, right: 39, turbo: 38}};
 
 function addPts(p,q) {
     return({x: p.x + q.x, y: p.y + q.y});
@@ -158,11 +160,31 @@ grid.prototype.checkCollisions = function(piece) {
 
 grid.prototype.freeze = function(piece) {
     var pieceType = piece.color == "black" ? 0 : 1;
+    var testRows = []
     for (var i = 0; i < piece.blocks.length; i++) {
         row = Math.floor(piece.blocks[i].center().y / BLOCK_SIZE);
         col = Math.floor(piece.blocks[i].center().x / BLOCK_SIZE);
         this.state[row][col] = pieceType;
+        testRows.push(row);
     }
+    
+    testRows =  testRows.sort().filter(function(item, pos) {
+        return !pos || item != testRows[pos - 1];
+    });
+    if (pieceType == 0) { testRows = testRows.reverse(); }
+    
+    // Check for complete rows:
+    for (var i = 0; i < testRows.length; i++) {
+        var row = testRows[i];
+        if (this.state[row].every(function(cell,i,ary){return(cell == pieceType)})) {
+            this.state.splice(row,1);
+            if (pieceType == 0) {
+                testRows = testRows.map(function(row,i,ary){return(row + 1)});
+                this.state.splice(0,0,[1,1,1,1,1,1,1,1,1,1,1]);
+            }
+        }
+    }
+    
 };
 
 /****************************
@@ -207,9 +229,7 @@ block.prototype.drawOn = function(layers) {
     var that = this;
     layers[this.blockLayer].drawings.push(function(ctx) {   
         ctx.fillStyle = that.color;
-        // ctx.strokeStyle = that.color;
         ctx.fillRect(that.screenX(), that.screenY(), that.width, that.height);
-        // ctx.strokeRect(that.screenX(), that.screenY(), that.width, that.height);
     });
 };
 
@@ -262,8 +282,10 @@ tetromino.prototype.update = function(delta) {
     this.positionBlocks();
     
     if (this.grid().checkCollisions(this)) {
-        this.x -= this.velocity.x * delta;
-        this.y -= this.velocity.y * delta;
+        this.x -= this.velocity.x * delta * this.turbo;
+        this.y -= this.velocity.y * delta * this.turbo;
+        this.y = Math.round(this.y / BLOCK_SIZE) * BLOCK_SIZE;
+        this.positionBlocks();
         this.frozen = this.frozen || new Date().getTime();
     } else {
         this.frozen = false;
@@ -314,6 +336,12 @@ tetromino.prototype.shift = function(dir) {
     }
     this.x += dir.x;
     this.y += dir.y;
+    this.positionBlocks();
+    if (this.grid().checkCollisions(this)) {
+        this.x -= dir.x;
+        this.y -= dir.y;
+        this.positionBlocks();
+    }
 };
 
 tetromino.prototype.rotate = function(M) {
