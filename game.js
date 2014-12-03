@@ -1,8 +1,15 @@
 var BLOCK_SIZE = 20;
+var FREEZE_DELAY = 1;
 var RUNNING = true;
 
+
 function addPts(p,q) {
-    return({x: p.x + q.x, y: p.y + q.y})
+    return({x: p.x + q.x, y: p.y + q.y});
+}
+
+function mul(M,v) {
+    return([(M[0][0] * v[0]) + (M[0][1] * v[1]),
+            (M[1][0] * v[0]) + (M[1][1] * v[1])]);
 }
 
 function game() {
@@ -22,7 +29,7 @@ function game() {
     
     tetromino.prototype.grid = function() { return g; };
     tetromino.generate = function(color) {
-        entities.push(new tetromino(false,5*BLOCK_SIZE,false,{x: 0, y: 20}));
+        entities.push(new tetromino(false,5*BLOCK_SIZE,0,{x: 0, y: 20}));
     };
     
     tetromino.generate("black");
@@ -222,6 +229,10 @@ function tetromino(shape, x, y, velocity, color) {
         blk = new block(this.x + (this.shape[i][0] * BLOCK_SIZE) , this.y + (this.shape[i][1] * BLOCK_SIZE) ,color)
         this.blocks.push(blk)
     }
+    
+    that = this;
+    this.keyListener = function(e) { that.handleKeyUp(e); };
+    window.addEventListener("keyup", this.keyListener);
 }
 
 tetromino.prototype.positionBlocks = function() {
@@ -229,10 +240,10 @@ tetromino.prototype.positionBlocks = function() {
         this.blocks[i].x = Math.floor(this.x) + (this.shape[i][0] * BLOCK_SIZE);
         this.blocks[i].y = Math.floor(this.y) + (this.shape[i][1] * BLOCK_SIZE);
     }
-}
+};
 
 tetromino.prototype.update = function(delta) {
-    if (this.frozen && new Date().getTime() - this.frozen > 2000) {
+    if (this.frozen && new Date().getTime() - this.frozen > 1000 * FREEZE_DELAY) {
         this.grid().freeze(this);
         this.destroy();
     }
@@ -248,16 +259,60 @@ tetromino.prototype.update = function(delta) {
     } else {
         this.frozen = false;
     } 
-}
+};
 
 tetromino.prototype.drawOn = function(layers) {
     for (var i=0; i < this.blocks.length; i++) {
         this.blocks[i].drawOn(layers);
     }
-}
+};
+
+tetromino.prototype.handleKeyUp = function(e) {
+    switch(e.keyCode) {
+    case 38: // Up
+        this.rotate("L");
+        break;
+    case 37: //
+        this.shift("L");
+        break;
+    case 39:
+        this.shift("R");
+        break;
+    }
+    
+};
+
+tetromino.prototype.shift = function(dir) {
+    switch (dir) {
+    case "L":
+        dir = {x: -1 * BLOCK_SIZE, y: 0};
+        break;
+    case "R":
+        dir = {x: BLOCK_SIZE, y: 0};
+        break;
+    }
+    this.x += dir.x;
+    this.y += dir.y;
+};
+
+tetromino.prototype.rotate = function(M) {
+    switch (M) {
+    case "L":
+        M = [[0,-1],[1,0]];
+        break;
+    case "R":
+        M = [[0,1],[-1,0]];
+        break;
+    }
+    for(var i=0; i < this.shape.length; i++) {
+        this.shape[i] = mul(M,this.shape[i]);
+    }
+};
 
 tetromino.prototype.destroy = function() {
     this.destroyed = true;
+    window.removeEventListener("keyup", this.keyListener);    
     tetromino.generate(this.color);
 }
+
 
