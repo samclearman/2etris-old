@@ -1,10 +1,15 @@
 var BLOCK_SIZE = 20;
 var FREEZE_DELAY = 1;
+var TURBO_MULTIPLIER = 4;
 var RUNNING = true;
 
 
 function addPts(p,q) {
     return({x: p.x + q.x, y: p.y + q.y});
+}
+
+function scalePt(p,s) {
+    return({x: p.x * s, y: p.y * s});
 }
 
 function mul(M,v) {
@@ -179,16 +184,16 @@ block.prototype.screenX = function() { return this.x; };
 block.prototype.screenY = function() { return this.y; };
 
 block.prototype.NW = function() {
-    return {x: this.screenX(), y: this.screenY()};
+    return {x: this.screenX() + 1, y: this.screenY()};
 };
 block.prototype.NE = function() {
-    return {x: this.screenX() + this.width, y: this.screenY()};
+    return {x: this.screenX() + this.width - 1, y: this.screenY()};
 };
 block.prototype.SW = function() {
-    return {x: this.screenX(), y: this.screenY() + this.height};
+    return {x: this.screenX() + 1, y: this.screenY() + this.height};
 };
 block.prototype.SE = function() {
-    return {x: this.screenX() + this.width, y: this.screenY() + this.height};
+    return {x: this.screenX() + this.width - 1, y: this.screenY() + this.height};
 };
 
 block.prototype.center = function() {
@@ -223,16 +228,20 @@ function tetromino(shape, x, y, velocity, color) {
     this.height = BLOCK_SIZE;
     this.color = color || "black";
     this.velocity = velocity || {x: 0, y: 0};
-    this.shape = shape || [[-1,0],[0,0],[0,1],[1,0]]
-    this.blocks = []
+    this.shape = shape || [[-1,0],[0,0],[0,1],[1,0]];
+    this.blocks = [];
+    this.turbo = 1;
     for(var i=0; i < this.shape.length; i++) {
         blk = new block(this.x + (this.shape[i][0] * BLOCK_SIZE) , this.y + (this.shape[i][1] * BLOCK_SIZE) ,color)
         this.blocks.push(blk)
     }
     
     that = this;
-    this.keyListener = function(e) { that.handleKeyUp(e); };
-    window.addEventListener("keyup", this.keyListener);
+    this.keyDownListener = function(e) { that.handleKeyDown(e); };
+    this.keyUpListener = function(e) { that.handleKeyUp(e); };
+    window.addEventListener("keyup", this.keyUpListener);
+    window.addEventListener("keydown", this.keyDownListener);
+    
 }
 
 tetromino.prototype.positionBlocks = function() {
@@ -248,8 +257,8 @@ tetromino.prototype.update = function(delta) {
         this.destroy();
     }
     
-    this.x += this.velocity.x * delta;
-    this.y += this.velocity.y * delta;
+    this.x += this.velocity.x * delta * this.turbo;
+    this.y += this.velocity.y * delta * this.turbo;
     this.positionBlocks();
     
     if (this.grid().checkCollisions(this)) {
@@ -267,16 +276,28 @@ tetromino.prototype.drawOn = function(layers) {
     }
 };
 
+tetromino.prototype.handleKeyDown = function(e) {
+    switch(e.keyCode) {
+    case 40: // Down
+        this.turbo = TURBO_MULTIPLIER;
+        break;
+    }
+    
+};
+
 tetromino.prototype.handleKeyUp = function(e) {
     switch(e.keyCode) {
     case 38: // Up
         this.rotate("L");
         break;
-    case 37: //
+    case 37: // Left
         this.shift("L");
         break;
-    case 39:
+    case 39: // Right
         this.shift("R");
+        break;
+    case 40: // Down
+        this.turbo = 1;
         break;
     }
     
@@ -311,7 +332,8 @@ tetromino.prototype.rotate = function(M) {
 
 tetromino.prototype.destroy = function() {
     this.destroyed = true;
-    window.removeEventListener("keyup", this.keyListener);    
+    window.removeEventListener("keyup", this.keyUpListener);
+    window.removeEventListener("keydown", this.keyDownListener);
     tetromino.generate(this.color);
 }
 
