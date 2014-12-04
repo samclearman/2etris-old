@@ -1,24 +1,28 @@
 <html>
 <head>
-	<title>REMEMBER THAT I AM EXIST</title>
-	<script src="game.js"></script>
-	<style type="text/css">
-		body {
-			background-color: rgb(0,180,240);
-		}
-		canvas {
-			position: fixed;
-			left: 0;
-			right: 0;
-			top: 0;
-			bottom: 0;
-			width: 220px;
-			height: 680px;
-			margin: auto;
-		}
-	</style>
+    <title>REMEMBER THAT I AM EXIST</title>
+    <script src="game.js"></script>
+    <style type="text/css">
+        html {
+            min-height:100%;
+/*            background-color: rgb(0,180,240);*/
+            background: linear-gradient(to bottom, rgb(150,200,255), rgb(0,180,255), rgb(0,50,100));
+            background-size: 100% 100%;
+/*            background-image: url("waves.gif");*/
+        }
+        canvas {
+            position: fixed;
+            left: 0;
+            right: 0;
+            top: 0;
+            bottom: 0;
+            width: 220px;
+            height: 680px;
+            margin: auto;
+        }
+    </style>
 </head>
 <body onload="game();">
-	<canvas id="game" width="220" height="680"></canvas>
+    <canvas id="game" width="220" height="680"></canvas>
 </body>
 </html>

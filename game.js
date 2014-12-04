@@ -1,10 +1,19 @@
+var DEBUG = false;
+
+var GRID_H = 34
 var BLOCK_SIZE = 20;
 var FREEZE_DELAY = 1;
 var TURBO_MULTIPLIER = 4;
 var RUNNING = true;
 
-var CONTROLS = {black: {turn: 87, left: 64, right: 68, turbo: 83},
-                white: {turn: 40, left: 37, right: 39, turbo: 38}};
+var CONTROLS = {white: {rotate: 83, left: 81, right: 69, turbo: 87},
+                black: {rotate: 38, left: 37, right: 39, turbo: 40}};
+
+var SHAPES = [
+    
+]
+var BLOCKED = false;
+
 
 function addPts(p,q) {
     return({x: p.x + q.x, y: p.y + q.y});
@@ -31,15 +40,28 @@ function game() {
         blocks: {z: 3, drawings: []}
     }
     
+    DEBUG = {}
+    DEBUG.entities = entities;
+    
     var g = new grid();
     entities.push(g);
     
     tetromino.prototype.grid = function() { return g; };
     tetromino.generate = function(color) {
-        entities.push(new tetromino(false,5*BLOCK_SIZE,0,{x: 0, y: 20}));
-    };
+        if (color == "black") {
+            var y = 0;
+            var v = {x: 0, y: BLOCK_SIZE};
+        }
+        if (color == "white") {
+            var y = GRID_H * BLOCK_SIZE;
+            var v = {x: 0, y: (-1 * BLOCK_SIZE)};
+        }
+        entities.push(new tetromino(false,5*BLOCK_SIZE,y,v,color));
+        
+    }
     
     tetromino.generate("black");
+    tetromino.generate("white");
     
     function update(delta) {
         
@@ -71,12 +93,16 @@ function game() {
     }
 
     function loop(){
-        now = new Date().getTime();
-        delta = (now - lastFrame) / 1000;
+        if (!RUNNING) { return true }
+        if (BLOCKED) { return false }
+        BLOCKED = true
+        var now = new Date().getTime();
+        var delta = (now - lastFrame) / 1000;
         update(delta);
         draw();
         render();
         lastFrame = now;
+        BLOCKED = false
     }
     
     var loopId = setInterval(loop, 16);
@@ -91,8 +117,8 @@ function game() {
 ****************************/
 
 function grid() {
-    this.rows = 10
-    this.cols = 20
+    this.rows = 34
+    this.cols = 11
     this.state = [[1,1,1,1,1,1,1,1,1,1,1],
                   [1,1,1,1,1,1,1,1,1,1,1],
                   [1,1,1,1,1,1,1,1,1,1,1],
@@ -135,9 +161,9 @@ grid.prototype.drawOn = function(layers) {
     for(var row=0; row < this.state.length; row++) {
         for (var col = 0; col < this.state[row].length; col ++) {
             if (this.state[row][col] == 0) {
-                color = "black"
+                var color = "black"
             } else {
-                color = "white"
+                var color = "white"
             }
             new block((col * BLOCK_SIZE), (row * BLOCK_SIZE), color, "bgBlocks").drawOn(layers);
         }
@@ -148,8 +174,12 @@ grid.prototype.checkCollisions = function(piece) {
     var pieceType = piece.color == "black" ? 0 : 1;
     for (var i = 0; i < piece.blocks.length; i++) {
         for (corner of ["NW","NE","SW","SE"]) {
-            row = Math.floor(piece.blocks[i][corner]().y / BLOCK_SIZE);
-            col = Math.floor(piece.blocks[i][corner]().x / BLOCK_SIZE);
+            var row = Math.floor(piece.blocks[i][corner]().y / BLOCK_SIZE);
+            var col = Math.floor(piece.blocks[i][corner]().x / BLOCK_SIZE);
+            if (row < 0 || row > GRID_H - 1) {
+                continue;
+            }
+            
             if (this.state[row][col] == pieceType) {
                 return true;
             }
@@ -164,6 +194,7 @@ grid.prototype.freeze = function(piece) {
     for (var i = 0; i < piece.blocks.length; i++) {
         row = Math.floor(piece.blocks[i].center().y / BLOCK_SIZE);
         col = Math.floor(piece.blocks[i].center().x / BLOCK_SIZE);
+        if (row < 0 || row > GRID_H - 1) {RUNNING = false; console.log("game over");}
         this.state[row][col] = pieceType;
         testRows.push(row);
     }
@@ -182,6 +213,11 @@ grid.prototype.freeze = function(piece) {
                 testRows = testRows.map(function(row,i,ary){return(row + 1)});
                 this.state.splice(0,0,[1,1,1,1,1,1,1,1,1,1,1]);
             }
+            if (pieceType == 1) {
+                testRows = testRows.map(function(row,i,ary){return(row - 1)});
+                this.state.push([0,0,0,0,0,0,0,0,0,0,0]);
+            }
+            
         }
     }
     
@@ -256,9 +292,9 @@ function tetromino(shape, x, y, velocity, color) {
         this.blocks.push(blk)
     }
     
-    that = this;
-    this.keyDownListener = function(e) { that.handleKeyDown(e); };
-    this.keyUpListener = function(e) { that.handleKeyUp(e); };
+    var that = this;
+    this.keyDownListener = function(e) { that.handleKeyDown(e);};
+    this.keyUpListener = function(e) { that.handleKeyUp(e,that);};
     window.addEventListener("keyup", this.keyUpListener);
     window.addEventListener("keydown", this.keyDownListener);
     
@@ -272,6 +308,7 @@ tetromino.prototype.positionBlocks = function() {
 };
 
 tetromino.prototype.update = function(delta) {
+    
     if (this.frozen && new Date().getTime() - this.frozen > 1000 * FREEZE_DELAY) {
         this.grid().freeze(this);
         this.destroy();
@@ -300,7 +337,7 @@ tetromino.prototype.drawOn = function(layers) {
 
 tetromino.prototype.handleKeyDown = function(e) {
     switch(e.keyCode) {
-    case 40: // Down
+    case CONTROLS[this.color]["turbo"]:
         this.turbo = TURBO_MULTIPLIER;
         break;
     }
@@ -309,16 +346,16 @@ tetromino.prototype.handleKeyDown = function(e) {
 
 tetromino.prototype.handleKeyUp = function(e) {
     switch(e.keyCode) {
-    case 38: // Up
+    case CONTROLS[this.color]["rotate"]:
         this.rotate("L");
         break;
-    case 37: // Left
+    case CONTROLS[this.color]["left"]:
         this.shift("L");
         break;
-    case 39: // Right
+    case CONTROLS[this.color]["right"]:
         this.shift("R");
         break;
-    case 40: // Down
+    case CONTROLS[this.color]["turbo"]:
         this.turbo = 1;
         break;
     }
