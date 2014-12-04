@@ -1,6 +1,7 @@
 var DEBUG = false;
 
-var GRID_H = 34
+var GRID_H = 34;
+var GRID_W = 11;
 var BLOCK_SIZE = 20;
 var FREEZE_DELAY = 1;
 var TURBO_MULTIPLIER = 4;
@@ -10,8 +11,15 @@ var CONTROLS = {white: {rotate: 83, left: 81, right: 69, turbo: 87},
                 black: {rotate: 38, left: 37, right: 39, turbo: 40}};
 
 var SHAPES = [
-    
-]
+    [[-1,0],[0,0],[1,0],[0,1]],
+    [[-1,1],[-1,0],[0,0],[1,0]],
+    [[-1,0],[0,0],[1,0],[1,1]],
+    [[-1,0],[0,0],[1,0],[2,0]],
+    [[-1,0],[0,0],[-1,1],[0,1]],
+    [[-1,1],[0,1],[0,0],[1,0]],
+    [[1,1],[0,1],[0,0],[-1,0]],
+];
+
 var BLOCKED = false;
 
 
@@ -48,6 +56,7 @@ function game() {
     
     tetromino.prototype.grid = function() { return g; };
     tetromino.generate = function(color) {
+        shape = eval(JSON.stringify(SHAPES[Math.floor(SHAPES.length * Math.random())]));
         if (color == "black") {
             var y = 0;
             var v = {x: 0, y: BLOCK_SIZE};
@@ -56,7 +65,7 @@ function game() {
             var y = GRID_H * BLOCK_SIZE;
             var v = {x: 0, y: (-1 * BLOCK_SIZE)};
         }
-        entities.push(new tetromino(false,5*BLOCK_SIZE,y,v,color));
+        entities.push(new tetromino(shape,5*BLOCK_SIZE,y,v,color));
         
     }
     
@@ -170,16 +179,19 @@ grid.prototype.drawOn = function(layers) {
     }
 }
 
-grid.prototype.checkCollisions = function(piece) {
+grid.prototype.checkCollisions = function(piece, checkpoints) {
     var pieceType = piece.color == "black" ? 0 : 1;
+    checkpoints = checkpoints ||["NW","NE","SW","SE"]
     for (var i = 0; i < piece.blocks.length; i++) {
-        for (corner of ["NW","NE","SW","SE"]) {
+        for (corner of checkpoints) {
             var row = Math.floor(piece.blocks[i][corner]().y / BLOCK_SIZE);
             var col = Math.floor(piece.blocks[i][corner]().x / BLOCK_SIZE);
-            if (row < 0 || row > GRID_H - 1) {
+            if (col < 0 || col >= GRID_W) {
+                return true;
+            }
+            if (row < 0 || row >= GRID_H) {
                 continue;
             }
-            
             if (this.state[row][col] == pieceType) {
                 return true;
             }
@@ -378,6 +390,21 @@ tetromino.prototype.shift = function(dir) {
         this.x -= dir.x;
         this.y -= dir.y;
         this.positionBlocks();
+    
+        // CHEATTT
+        if (this.y % BLOCK_SIZE < 5 || BLOCK_SIZE - (this.y & BLOCK_SIZE) < 3) {
+            var oldx = this.x;
+            var oldy = this.y;
+            this.y = Math.round(this.y / BLOCK_SIZE) * BLOCK_SIZE;
+            this.x += dir.x;
+            this.y += dir.y;
+            this.positionBlocks();
+            if (this.grid().checkCollisions(this, ["center"])) {
+                this.x = oldx;
+                this.y = oldy;
+                this.positionBlocks();
+            }
+        }
     }
 };
 
@@ -390,9 +417,19 @@ tetromino.prototype.rotate = function(M) {
         M = [[0,1],[-1,0]];
         break;
     }
+    
+    var oldShape = this.shape.slice(0);
+    
     for(var i=0; i < this.shape.length; i++) {
         this.shape[i] = mul(M,this.shape[i]);
     }
+    
+    this.positionBlocks();
+    if (this.grid().checkCollisions(this)) {
+        this.shape = oldShape;
+        this.positionBlocks();
+    }
+    
 };
 
 tetromino.prototype.destroy = function() {
