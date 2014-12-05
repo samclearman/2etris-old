@@ -5,6 +5,9 @@ var GRID_W = 11;
 var BLOCK_SIZE = 20;
 var FREEZE_DELAY = 1;
 var TURBO_MULTIPLIER = 4;
+
+var BLOCK_SCORE = 10;
+var LINE_MULTIPLE = 1.1;
 var RUNNING = true;
 
 var CONTROLS = {white: {rotate: 83, left: 81, right: 69, turbo: 87},
@@ -18,6 +21,15 @@ var SHAPES = [
     [[-1,0],[0,0],[-1,1],[0,1]],
     [[-1,1],[0,1],[0,0],[1,0]],
     [[1,1],[0,1],[0,0],[-1,0]],
+];
+
+var HIGHLIGHT_COLORS = [
+    "255,0,0",
+    "255,255,0",
+    "0,255,0",
+    "0,255,255",
+    "0,0,255",
+    "255,0,255"
 ];
 
 var BLOCKED = false;
@@ -45,16 +57,15 @@ function game() {
     var entities = [];
     var layers = {
         bgBlocks: {z: 1, drawings: []},
-        blocks: {z: 3, drawings: []}
-    }
+        blocks: {z: 3, drawings: []},
+        effects: {z: 5, drawings: []}
+    };
+    
     
     DEBUG = {}
     DEBUG.entities = entities;
     
-    var g = new grid();
-    entities.push(g);
     
-    tetromino.prototype.grid = function() { return g; };
     tetromino.generate = function(color) {
         shape = eval(JSON.stringify(SHAPES[Math.floor(SHAPES.length * Math.random())]));
         if (color == "black") {
@@ -69,8 +80,20 @@ function game() {
         
     }
     
-    tetromino.generate("black");
-    tetromino.generate("white");
+    highlight.row = function(row) {
+        rgb = HIGHLIGHT_COLORS[Math.floor(HIGHLIGHT_COLORS.length * Math.random())];
+        entities.push(new highlight(0, row * BLOCK_SIZE, BLOCK_SIZE, GRID_W * BLOCK_SIZE, rgb, .5));
+    };
+    
+    function setup() {
+        var board = new scoreboard(0);
+        var g = new grid(board);
+        tetromino.prototype.grid = function() { return g; };
+        entities.push(g);
+        tetromino.generate("black");
+        tetromino.generate("white");
+    }
+    setup();
     
     function update(delta) {
         
@@ -114,6 +137,14 @@ function game() {
         BLOCKED = false
     }
     
+    function reset(){
+        entities.forEach(function(e,a,i) {e.destroy()});
+        update(0);
+        setup();
+        var lastFrame = new Date().getTime();
+    }
+    document.getElementById('reset_button').addEventListener("click", reset);
+    
     var loopId = setInterval(loop, 16);
     
 }
@@ -125,9 +156,10 @@ function game() {
 *                           *
 ****************************/
 
-function grid() {
+function grid(scoreboard) {
     this.rows = 34
     this.cols = 11
+    this.scoreboard = scoreboard;
     this.state = [[1,1,1,1,1,1,1,1,1,1,1],
                   [1,1,1,1,1,1,1,1,1,1,1],
                   [1,1,1,1,1,1,1,1,1,1,1],
@@ -201,8 +233,9 @@ grid.prototype.checkCollisions = function(piece, checkpoints) {
 }
 
 grid.prototype.freeze = function(piece) {
+    this.scoreboard.add(BLOCK_SCORE);
     var pieceType = piece.color == "black" ? 0 : 1;
-    var testRows = []
+    var testRows = [];
     for (var i = 0; i < piece.blocks.length; i++) {
         row = Math.floor(piece.blocks[i].center().y / BLOCK_SIZE);
         col = Math.floor(piece.blocks[i].center().x / BLOCK_SIZE);
@@ -217,15 +250,20 @@ grid.prototype.freeze = function(piece) {
     if (pieceType == 0) { testRows = testRows.reverse(); }
     
     // Check for complete rows:
+    var hoffset = 0;
     for (var i = 0; i < testRows.length; i++) {
         var row = testRows[i];
         if (this.state[row].every(function(cell,i,ary){return(cell == pieceType)})) {
             this.state.splice(row,1);
+            highlight.row(row + hoffset);
+            this.scoreboard.multiplier *= LINE_MULTIPLE;
             if (pieceType == 0) {
+                hoffset -= 1;
                 testRows = testRows.map(function(row,i,ary){return(row + 1)});
                 this.state.splice(0,0,[1,1,1,1,1,1,1,1,1,1,1]);
             }
             if (pieceType == 1) {
+                hoffset += 1;
                 testRows = testRows.map(function(row,i,ary){return(row - 1)});
                 this.state.push([0,0,0,0,0,0,0,0,0,0,0]);
             }
@@ -235,17 +273,19 @@ grid.prototype.freeze = function(piece) {
     
 };
 
+grid.prototype.destroy = function() {this.destroyed = true;};
+
 /****************************
 *                           *
 *   Block class             *
 *                           *
 ****************************/
 
-function block(x,y,color, blockLayer) {
+function block(x,y,color, blockLayer, width, height) {
     this.x = x || 0;
     this.y = y || 0;
-    this.width = BLOCK_SIZE;
-    this.height = BLOCK_SIZE;
+    this.width = width || BLOCK_SIZE;
+    this.height = height || BLOCK_SIZE;
     this.color = color || "black";
     this.blockLayer = blockLayer || "blocks";
 };
@@ -281,7 +321,7 @@ block.prototype.drawOn = function(layers) {
     });
 };
 
-
+block.prototype.destroy = function() { this.destroyed = true; };
 
 /****************************
 *                           *
@@ -324,6 +364,7 @@ tetromino.prototype.update = function(delta) {
     if (this.frozen && new Date().getTime() - this.frozen > 1000 * FREEZE_DELAY) {
         this.grid().freeze(this);
         this.destroy();
+        tetromino.generate(this.color);
     }
     
     this.x += this.velocity.x * delta * this.turbo;
@@ -436,7 +477,66 @@ tetromino.prototype.destroy = function() {
     this.destroyed = true;
     window.removeEventListener("keyup", this.keyUpListener);
     window.removeEventListener("keydown", this.keyDownListener);
-    tetromino.generate(this.color);
 }
 
 
+/****************************
+*                           *
+*   Highlight class         *
+*                           *
+****************************/
+
+function highlight(x, y, height, width, rgb, duration) {
+    this.x = x || 0;
+    this.y = y || 0;
+    this.height = height || 10;
+    this.width = width || 10;
+    this.rgb = rgb || '255,255,0';
+    this.duration = duration || 1;
+    
+    this.color = "rgb(" + this.rgb + ")";
+    this.created = new Date().getTime();
+}
+
+highlight.prototype.update = function(delta) {
+    var elapsed = ((new Date().getTime() - this.created) / 1000);
+    if (elapsed > this.duration) {
+        this.destroy();
+    } else {
+        var alpha = 1 - (elapsed / this.duration);
+        this.color = "rgba(" + this.rgb + "," + alpha + ")";
+    }
+    
+}
+
+highlight.prototype.destroy = function() { this.destroyed = true };
+
+highlight.prototype.drawOn = function(layers) {
+    new block(this.x, this.y, this.color, "effects", this.width, this.height).drawOn(layers);
+};
+
+
+/****************************
+*                           *
+*   Scoreboard class        *
+*                           *
+****************************/
+
+function scoreboard(score) {
+    this.score = score || 0;
+    this.multiplier = 1;
+    this.highscore = parseInt(localStorage.getItem("highscore"));
+    this.highscore = this.highscore || 0;
+    this.add(0);
+}
+
+scoreboard.prototype.add = function(pts) {
+    this.score += Math.floor(pts * this.multiplier);
+    document.getElementById("score").textContent = this.score;
+    
+    if (this.score > this.highscore) {
+        this.highscore = this.score;
+        localStorage.setItem("highscore", this.highscore);
+    }
+    document.getElementById("high_score").textContent = this.highscore;
+};
