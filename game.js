@@ -345,8 +345,8 @@ function tetromino(shape, x, y, velocity, color) {
     }
     
     var that = this;
-    this.keyDownListener = function(e) { that.handleKeyDown(e);};
-    this.keyUpListener = function(e) { that.handleKeyUp(e,that);};
+    this.keyDownListener = function(e) { e.preventDefault(); that.handleKeyDown(e);};
+    this.keyUpListener = function(e) { e.preventDefault(); that.handleKeyUp(e,that);};
     window.addEventListener("keyup", this.keyUpListener);
     window.addEventListener("keydown", this.keyDownListener);
     
