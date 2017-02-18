@@ -37,6 +37,7 @@ var HIGHLIGHT_COLORS = [
 
 var BLOCKED = false;
 
+var FB_MOVES_LIST = firebase.database().ref('moves_list');
 
 function addPts(p,q) {
     return({x: p.x + q.x, y: p.y + q.y});
@@ -347,12 +348,15 @@ function tetromino(shape, x, y, velocity, color) {
         blk = new block(this.x + (this.shape[i][0] * BLOCK_SIZE) , this.y + (this.shape[i][1] * BLOCK_SIZE) ,color)
         this.blocks.push(blk)
     }
-    
+
+    // All of these handlers have to be stored on the object so that they can be cleaned up on destroy
     var that = this;
     this.keyDownListener = function(e) { e.preventDefault(); that.handleKeyDown(e);};
     this.keyUpListener = function(e) { e.preventDefault(); that.handleKeyUp(e,that);};
     window.addEventListener("keyup", this.keyUpListener);
     window.addEventListener("keydown", this.keyDownListener);
+    this.fbMoveListener = function(d) { that.handleFbMove(d.val()); };
+    FB_MOVES_LIST.on("child_added", this.fbMoveListener)
     
 }
 
@@ -395,7 +399,7 @@ tetromino.prototype.drawOn = function(layers) {
 tetromino.prototype.handleKeyDown = function(e) {
     switch(e.keyCode) {
     case CONTROLS[this.color]["turbo"]:
-        this.turbo = TURBO_MULTIPLIER;
+	FB_MOVES_LIST.push({color: this.color, move: "turbo_on"});
         break;
     }
     
@@ -404,19 +408,39 @@ tetromino.prototype.handleKeyDown = function(e) {
 tetromino.prototype.handleKeyUp = function(e) {
     switch(e.keyCode) {
     case CONTROLS[this.color]["rotate"]:
-        this.rotate("L");
+        FB_MOVES_LIST.push({color: this.color, move: "rotate"});
         break;
     case CONTROLS[this.color]["left"]:
-        this.shift("L");
+        FB_MOVES_LIST.push({color: this.color, move: "left"});
         break;
     case CONTROLS[this.color]["right"]:
-        this.shift("R");
+        FB_MOVES_LIST.push({color: this.color, move: "right"});
         break;
     case CONTROLS[this.color]["turbo"]:
+        FB_MOVES_LIST.push({color: this.color, move: "turbo_off"});
+        break;
+    } 
+};
+
+tetromino.prototype.handleFbMove = function(move) {
+    if (move.color != this.color) { return; }
+    switch(move.move) {
+    case "rotate":
+        this.rotate("L");
+        break;
+    case "left":
+        this.shift("L");
+        break;
+    case "right":
+        this.shift("R");
+        break;
+    case "turbo_on":
+        this.turbo = TURBO_MULTIPLIER;
+	break;
+    case "turbo_off":
         this.turbo = 1;
         break;
-    }
-    
+    } 
 };
 
 tetromino.prototype.shift = function(dir) {
