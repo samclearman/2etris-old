@@ -38,6 +38,7 @@ var HIGHLIGHT_COLORS = [
 var BLOCKED = false;
 
 var FB_MOVES_LIST = firebase.database().ref('moves_list');
+var FB_GRID = firebase.database().ref('grid');
 
 function addPts(p,q) {
     return({x: p.x + q.x, y: p.y + q.y});
@@ -198,9 +199,18 @@ function grid(scoreboard) {
                   [0,0,0,0,0,0,0,0,0,0,0],
                   [0,0,0,0,0,0,0,0,0,0,0],
                   [0,0,0,0,0,0,0,0,0,0,0]];
+    FB_GRID.child('state').set(this.state);
+    that = this;
+    FB_GRID.child('state').on("value",function(s) {
+        that.state = s.val();
+    });
 }
 
 grid.prototype.update = function(delta) {}
+
+grid.prototype.set = function(row,col,color) {
+    FB_GRID.child('state/' + row + '/' + col).set(color);
+}
 
 grid.prototype.drawOn = function(layers) {
     for(var row=0; row < this.state.length; row++) {
@@ -238,13 +248,14 @@ grid.prototype.checkCollisions = function(piece, checkpoints) {
 
 grid.prototype.freeze = function(piece) {
     this.scoreboard.add(BLOCK_SCORE);
+       
     var pieceType = piece.color == "black" ? 0 : 1;
     var testRows = [];
     for (var i = 0; i < piece.blocks.length; i++) {
         row = Math.floor(piece.blocks[i].center().y / BLOCK_SIZE);
         col = Math.floor(piece.blocks[i].center().x / BLOCK_SIZE);
-        if (row < 0 || row > GRID_H - 1) {RUNNING = false; console.log("game over");}
-        this.state[row][col] = pieceType;
+        if (row < 0 || row > GRID_H - 1) {RUNNING = false; console.log("game over"); return;}
+        this.set(row, col, pieceType);
         testRows.push(row);
     }
     
@@ -254,28 +265,29 @@ grid.prototype.freeze = function(piece) {
     if (pieceType == 0) { testRows = testRows.reverse(); }
     
     // Check for complete rows:
+    var state = this.state;
     var hoffset = 0;
     for (var i = 0; i < testRows.length; i++) {
         var row = testRows[i];
-        if (this.state[row].every(function(cell,i,ary){return(cell == pieceType)})) {
-            this.state.splice(row,1);
+        if (state[row].every(function(cell,i,ary){return(cell == pieceType)})) {
+            state.splice(row,1);
             highlight.row(row + hoffset);
             this.scoreboard.multiplier *= LINE_MULTIPLE;
             SPEED += LINE_BOOST;
             if (pieceType == 0) {
                 hoffset -= 1;
                 testRows = testRows.map(function(row,i,ary){return(row + 1)});
-                this.state.splice(0,0,[1,1,1,1,1,1,1,1,1,1,1]);
+                state.splice(0,0,[1,1,1,1,1,1,1,1,1,1,1]);
             }
             if (pieceType == 1) {
                 hoffset += 1;
                 testRows = testRows.map(function(row,i,ary){return(row - 1)});
-                this.state.push([0,0,0,0,0,0,0,0,0,0,0]);
+                state.push([0,0,0,0,0,0,0,0,0,0,0]);
             }
             
         }
     }
-    
+    FB_GRID.child('state').set(state);
 };
 
 grid.prototype.destroy = function() {this.destroyed = true;};
