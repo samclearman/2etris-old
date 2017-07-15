@@ -37,8 +37,14 @@ var HIGHLIGHT_COLORS = [
 
 var BLOCKED = false;
 
+var SERVER = false;
+if (((new URL(document.location)).searchParams).get('server') == "true") {
+    SERVER = true
+}
+
 var FB_MOVES_LIST = firebase.database().ref('moves_list');
 var FB_GRID = firebase.database().ref('grid');
+var FB_TETROMINOS = firebase.database().ref('tetromoinos_list');
 
 function addPts(p,q) {
     return({x: p.x + q.x, y: p.y + q.y});
@@ -226,7 +232,7 @@ grid.prototype.drawOn = function(layers) {
 }
 
 grid.prototype.checkCollisions = function(piece, checkpoints) {
-    var pieceType = piece.color == "black" ? 0 : 1;
+    var pieceType = piece._state['color'] == "black" ? 0 : 1;
     checkpoints = checkpoints ||["NW","NE","SW","SE"]
     for (var i = 0; i < piece.blocks.length; i++) {
         for (corner of checkpoints) {
@@ -254,7 +260,11 @@ grid.prototype.freeze = function(piece) {
     for (var i = 0; i < piece.blocks.length; i++) {
         row = Math.floor(piece.blocks[i].center().y / BLOCK_SIZE);
         col = Math.floor(piece.blocks[i].center().x / BLOCK_SIZE);
-        if (row < 0 || row > GRID_H - 1) {RUNNING = false; console.log("game over"); return;}
+        if (row < 0 || row > GRID_H - 1) {
+	    RUNNING = false;
+	    console.log("game over");
+	    return;
+	}
         this.set(row, col, pieceType);
         testRows.push(row);
     }
@@ -347,17 +357,18 @@ block.prototype.destroy = function() { this.destroyed = true; };
 ****************************/
 
 function tetromino(shape, x, y, velocity, color) {
-    this.x = x || 0;
-    this.y = y || 0;
+    this._state = {};
+    this._state['x'] = x || 0;
+    this._state['y'] = y || 0;
+    this._state['color'] = color || "black";
+    this._state['shape'] = shape || [[-1,0],[0,0],[0,1],[1,0]];
     this.width = BLOCK_SIZE;
     this.height = BLOCK_SIZE;
-    this.color = color || "black";
     this.velocity = velocity || {x: 0, y: 0};
-    this.shape = shape || [[-1,0],[0,0],[0,1],[1,0]];
     this.blocks = [];
     this.turbo = 1;
-    for(var i=0; i < this.shape.length; i++) {
-        blk = new block(this.x + (this.shape[i][0] * BLOCK_SIZE) , this.y + (this.shape[i][1] * BLOCK_SIZE) ,color)
+    for(var i=0; i < this._state['shape'].length; i++) {
+        blk = new block(this._state['x'] + (this._state['shape'][i][0] * BLOCK_SIZE) , this._state['y'] + (this._state['shape'][i][1] * BLOCK_SIZE) ,color)
         this.blocks.push(blk)
     }
 
@@ -371,6 +382,28 @@ function tetromino(shape, x, y, velocity, color) {
     FB_MOVES_LIST.on("child_added", this.fbMoveListener)
     
 }
+
+Object.defineProperty(tetromino.prototype, 'x', {
+    get: function() { return this._state['x']; },
+    set: function(x) { this._state['x'] = x; }
+});
+
+Object.defineProperty(tetromino.prototype, 'y', {
+    get: function() { return this._state['y']; },
+    set: function(y) { this._state['y'] = y; }
+});
+
+Object.defineProperty(tetromino.prototype, 'color', {
+    get: function() { return this._state['color']; }
+});
+
+Object.defineProperty(tetromino.prototype, 'shape', {
+    get: function() { return this._state['shape']; }
+});
+
+
+		      
+		      
 
 tetromino.prototype.positionBlocks = function() {
     for(var i=0; i < this.blocks.length; i++) {
