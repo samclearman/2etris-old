@@ -362,9 +362,9 @@ function tetromino(shape, x, y, velocity, color) {
     this._state['y'] = y || 0;
     this._state['color'] = color || "black";
     this._state['shape'] = shape || [[-1,0],[0,0],[0,1],[1,0]];
+    this._state['velocity'] = velocity || {x: 0, y: 0};
     this.width = BLOCK_SIZE;
     this.height = BLOCK_SIZE;
-    this.velocity = velocity || {x: 0, y: 0};
     this.blocks = [];
     this.turbo = 1;
     for(var i=0; i < this._state['shape'].length; i++) {
@@ -399,6 +399,10 @@ Object.defineProperty(tetromino.prototype, 'color', {
 
 Object.defineProperty(tetromino.prototype, 'shape', {
     get: function() { return this._state['shape']; }
+});
+
+Object.defineProperty(tetromino.prototype, 'velocity', {
+    get: function() { return this._state['velocity']; }
 });
 
 
