@@ -403,11 +403,7 @@ Object.defineProperty(tetromino.prototype, 'shape', {
 
 Object.defineProperty(tetromino.prototype, 'velocity', {
     get: function() { return this._state['velocity']; }
-});
-
-
-		      
-		      
+});		      		      
 
 tetromino.prototype.positionBlocks = function() {
     for(var i=0; i < this.blocks.length; i++) {
