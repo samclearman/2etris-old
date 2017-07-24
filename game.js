@@ -78,7 +78,7 @@ function game() {
     
     
     tetromino.generate = function(color) {
-        shape = eval(JSON.stringify(SHAPES[Math.floor(SHAPES.length * Math.random())]));
+        var shape = eval(JSON.stringify(SHAPES[Math.floor(SHAPES.length * Math.random())]));
         if (color == "black") {
             var y = -1 * BLOCK_SIZE;
             var v = {x: 0, y: BLOCK_SIZE};
@@ -87,12 +87,18 @@ function game() {
             var y = GRID_H * BLOCK_SIZE;
             var v = {x: 0, y: (-1 * BLOCK_SIZE)};
         }
-        entities.push(new tetromino(shape,5*BLOCK_SIZE,y,v,color));
-        
+        entities.push(new tetromino({
+	    shape: shape,
+	    width: 5*BLOCK_SIZE,
+	    x: Math.floor(GRID_W/2) * BLOCK_SIZE,
+	    y: y,
+	    velocity: v,
+	    color: color
+	}));
     }
     
     highlight.row = function(row) {
-        rgb = HIGHLIGHT_COLORS[Math.floor(HIGHLIGHT_COLORS.length * Math.random())];
+        var rgb = HIGHLIGHT_COLORS[Math.floor(HIGHLIGHT_COLORS.length * Math.random())];
         entities.push(new highlight(0, row * BLOCK_SIZE, BLOCK_SIZE, GRID_W * BLOCK_SIZE, rgb, .5));
     };
     
@@ -356,19 +362,23 @@ block.prototype.destroy = function() { this.destroyed = true; };
 *                           *
 ****************************/
 
-function tetromino(shape, x, y, velocity, color) {
-    this._state = {};
-    this._state['x'] = x || 0;
-    this._state['y'] = y || 0;
-    this._state['color'] = color || "black";
-    this._state['shape'] = shape || [[-1,0],[0,0],[0,1],[1,0]];
-    this._state['velocity'] = velocity || {x: 0, y: 0};
+
+function tetromino(state) {
+    this._state = Object.assign({
+	x: 0,
+	y: 0,
+	color: "black",
+	shape: [[-1,0],[0,0],[0,1],[1,0]],
+	velocity: {x: 0, y: 0},
+    }, state);
+    this._stateRef = FB_TETROMINOS.push(this._state);
+    
     this.width = BLOCK_SIZE;
     this.height = BLOCK_SIZE;
     this.blocks = [];
     this.turbo = 1;
     for(var i=0; i < this._state['shape'].length; i++) {
-        blk = new block(this._state['x'] + (this._state['shape'][i][0] * BLOCK_SIZE) , this._state['y'] + (this._state['shape'][i][1] * BLOCK_SIZE) ,color)
+        blk = new block(this._state['x'] + (this._state['shape'][i][0] * BLOCK_SIZE) , this._state['y'] + (this._state['shape'][i][1] * BLOCK_SIZE), this._state['color'])
         this.blocks.push(blk)
     }
 
@@ -378,19 +388,30 @@ function tetromino(shape, x, y, velocity, color) {
     this.keyUpListener = function(e) { e.preventDefault(); that.handleKeyUp(e,that);};
     window.addEventListener("keyup", this.keyUpListener);
     window.addEventListener("keydown", this.keyDownListener);
+    
     this.fbMoveListener = function(d) { that.handleFbMove(d.val()); };
     FB_MOVES_LIST.on("child_added", this.fbMoveListener)
+    
+    this._stateRef.on("value",function(s) {
+        that._state = s.val();
+    });
     
 }
 
 Object.defineProperty(tetromino.prototype, 'x', {
     get: function() { return this._state['x']; },
-    set: function(x) { this._state['x'] = x; }
+    set: function(x) {
+	this._state['x'] = x;
+	this._stateRef.set(this._state);
+    }
 });
 
 Object.defineProperty(tetromino.prototype, 'y', {
     get: function() { return this._state['y']; },
-    set: function(y) { this._state['y'] = y; }
+    set: function(y) {
+	this._state['y'] = y;
+	this._stateRef.set(this._state);
+    }
 });
 
 Object.defineProperty(tetromino.prototype, 'color', {
