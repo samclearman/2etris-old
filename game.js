@@ -107,10 +107,23 @@ function game() {
         var g = new grid(board);
         tetromino.prototype.grid = function() { return g; };
         entities.push(g);
+	FB_TETROMINOS.remove();
         tetromino.generate("black");
         tetromino.generate("white");
     }
-    setup();
+
+    function init() {
+	var board = new scoreboard(0);
+	var g = new grid(board);
+	tetromino.prototype.grid = function() { return g; };
+	entities.push(g);
+	FB_TETROMINOS.once('child_added').then(function(fb_tet) {
+	    entities.push(new tetromino(fb_tet.val(), fb_tet.ref));
+	});
+    }
+    
+    SERVER ? setup() : init();
+	
     
     function update(delta) {
         
@@ -363,7 +376,7 @@ block.prototype.destroy = function() { this.destroyed = true; };
 ****************************/
 
 
-function tetromino(state) {
+function tetromino(state, ref) {
     this._state = Object.assign({
 	x: 0,
 	y: 0,
@@ -371,7 +384,7 @@ function tetromino(state) {
 	shape: [[-1,0],[0,0],[0,1],[1,0]],
 	velocity: {x: 0, y: 0},
     }, state);
-    this._stateRef = FB_TETROMINOS.push(this._state);
+    this._stateRef = ref || FB_TETROMINOS.push(this._state);
     
     this.width = BLOCK_SIZE;
     this.height = BLOCK_SIZE;
