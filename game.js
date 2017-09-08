@@ -45,6 +45,11 @@ if (((new URL(document.location)).searchParams).get('server') == "true") {
 var FB_MOVES_LIST = firebase.database().ref('moves_list');
 var FB_GRID = firebase.database().ref('grid');
 var FB_TETROMINOS = firebase.database().ref('tetromoinos_list');
+if (SERVER) {
+    FB_MOVES_LIST.set(null);
+    FB_GRID.set(null);
+    FB_TETROMINOS.set(null);
+}
 
 function addPts(p,q) {
     return({x: p.x + q.x, y: p.y + q.y});
@@ -78,6 +83,9 @@ function game() {
     
     
     tetromino.generate = function(color) {
+	if (!SERVER) {
+	    return
+	}
         var shape = eval(JSON.stringify(SHAPES[Math.floor(SHAPES.length * Math.random())]));
         if (color == "black") {
             var y = -1 * BLOCK_SIZE;
@@ -117,7 +125,7 @@ function game() {
 	var g = new grid(board);
 	tetromino.prototype.grid = function() { return g; };
 	entities.push(g);
-	FB_TETROMINOS.once('child_added').then(function(fb_tet) {
+	FB_TETROMINOS.on('child_added', function(fb_tet) {
 	    entities.push(new tetromino(fb_tet.val(), fb_tet.ref));
 	});
     }
@@ -224,7 +232,7 @@ function grid(scoreboard) {
                   [0,0,0,0,0,0,0,0,0,0,0],
                   [0,0,0,0,0,0,0,0,0,0,0],
                   [0,0,0,0,0,0,0,0,0,0,0]];
-    FB_GRID.child('state').set(this.state);
+    if (SERVER) {FB_GRID.child('state').set(this.state);}
     that = this;
     FB_GRID.child('state').on("value",function(s) {
         that.state = s.val();
@@ -234,6 +242,9 @@ function grid(scoreboard) {
 grid.prototype.update = function(delta) {}
 
 grid.prototype.set = function(row,col,color) {
+    if (!SERVER) {
+	return
+    }
     FB_GRID.child('state/' + row + '/' + col).set(color);
 }
 
@@ -404,10 +415,15 @@ function tetromino(state, ref) {
     
     this.fbMoveListener = function(d) { that.handleFbMove(d.val()); };
     FB_MOVES_LIST.on("child_added", this.fbMoveListener)
-    
-    this._stateRef.on("value",function(s) {
+
+    this.fbStateCallback = function(s) {
+	if (s.val() === null) {
+	    that.destroy();
+	    return;
+	}
         that._state = s.val();
-    });
+    }
+    this._stateRef.on("value", this.fbStateCallback);
     
 }
 
@@ -582,6 +598,10 @@ tetromino.prototype.rotate = function(M) {
 
 tetromino.prototype.destroy = function() {
     this.destroyed = true;
+    if (SERVER) {
+	this._stateRef.off("value", this.fbStateCallback);
+	this._stateRef.remove();
+    }
     window.removeEventListener("keyup", this.keyUpListener);
     window.removeEventListener("keydown", this.keyDownListener);
 }
