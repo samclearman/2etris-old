@@ -46,9 +46,9 @@ var FB_MOVES_LIST = firebase.database().ref('moves_list');
 var FB_GRID = firebase.database().ref('grid');
 var FB_TETROMINOS = firebase.database().ref('tetromoinos_list');
 if (SERVER) {
-    FB_MOVES_LIST.set(null);
-    FB_GRID.set(null);
-    FB_TETROMINOS.set(null);
+    FB_MOVES_LIST.remove();
+    FB_GRID.remove();
+    FB_TETROMINOS.remove();
 }
 
 function addPts(p,q) {
@@ -431,7 +431,9 @@ Object.defineProperty(tetromino.prototype, 'x', {
     get: function() { return this._state['x']; },
     set: function(x) {
 	this._state['x'] = x;
-	this._stateRef.set(this._state);
+	if (SERVER) {
+	    this._stateRef.set(this._state);
+	}
     }
 });
 
@@ -439,7 +441,9 @@ Object.defineProperty(tetromino.prototype, 'y', {
     get: function() { return this._state['y']; },
     set: function(y) {
 	this._state['y'] = y;
-	this._stateRef.set(this._state);
+	if (SERVER) {
+	    this._stateRef.set(this._state);
+	}
     }
 });
 
