@@ -211,18 +211,17 @@ function synchronized(properties, fb_root, cls) {
 
     wrapper.prototype = synched_cls.prototype
     
-    for (p in properties) {
-	let _p = p;
-    	Object.defineProperty(synched_cls.prototype, _p, {
-	    get: function() { return this._state[_p]; },
+    Object.keys(properties).forEach(p => {
+    	Object.defineProperty(synched_cls.prototype, p, {
+	    get: function() { return this._state[p]; },
 	    set: function(val) {
-		this._state[_p] = val;
+		this._state[p] = val;
 		if (SERVER) {
 		    this._state_ref.set(this._state);
 		}
 	    }
 	});
-    }
+    });
     
     fb_root.on('child_added', function(child) {
 	new synched_cls(child.val(), child.ref);
