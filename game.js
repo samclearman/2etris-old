@@ -57,8 +57,8 @@ function addPts(p,q) {
 
 function scalePt(p,s) {
     return({x: p.x * s, y: p.y * s});
-}
 
+}
 function mul(M,v) {
     return([(M[0][0] * v[0]) + (M[0][1] * v[1]),
             (M[1][0] * v[0]) + (M[1][1] * v[1])]);
@@ -71,6 +71,8 @@ function game() {
     var lastFrame = new Date().getTime();
     
     var entities = [];
+    grid.prototype.entities = entities;
+    
     var layers = {
         bgBlocks: {z: 1, drawings: []},
         blocks: {z: 3, drawings: []},
@@ -111,8 +113,7 @@ function game() {
     };
     
     function setup() {
-        var board = new scoreboard(0);
-        var g = new grid(board);
+        var g = new grid();
         tetromino.prototype.grid = function() { return g; };
         entities.push(g);
 	FB_TETROMINOS.remove();
@@ -121,8 +122,7 @@ function game() {
     }
 
     function init() {
-	var board = new scoreboard(0);
-	var g = new grid(board);
+	var g = new grid();
 	tetromino.prototype.grid = function() { return g; };
 	entities.push(g);
 	FB_TETROMINOS.on('child_added', function(fb_tet) {
@@ -187,71 +187,113 @@ function game() {
     
 }
 
+function synchronized(properties, fb_root, cls) {
+    
+    let synched_cls = function (state, state_ref) {
+	this._state = state;
+	this._state_ref = state_ref;
+	that = this;
+	this._state_ref.on("value",function(s) {
+            that._state = s.val();
+	});
+	cls.call(this);
+    }
+    
+    let wrapper = function(state) {
+	state = state || {};
+	state = Object.assign(properties, state);
+	if(!SERVER) {
+	    return null;
+	}
+	let state_ref = fb_root.push(state);
+	return new synched_cls(state, state_ref);
+    }
 
+    wrapper.prototype = synched_cls.prototype
+    
+    for (p in properties) {
+    	Object.defineProperty(synched_cls.prototype, p, {
+	    get: function() { return this._state[p]; },
+	    set: function(val) {
+		this._state[p] = val;
+		if (SERVER) {
+		    this._state_ref.set(this._state);
+		}
+	    }
+	});
+    }
+    
+    fb_root.on('child_added', function(child) {
+	new synched_cls(child.val(), child.ref);
+    });
+
+    return wrapper;
+ 
+};
+    
 /****************************
 *                           *
 *   Grid class              *
 *                           *
 ****************************/
 
-function grid(scoreboard) {
-    this.rows = 34
-    this.cols = 11
-    this.scoreboard = scoreboard;
-    this.state = [[1,1,1,1,1,1,1,1,1,1,1],
-                  [1,1,1,1,1,1,1,1,1,1,1],
-                  [1,1,1,1,1,1,1,1,1,1,1],
-                  [1,1,1,1,1,1,1,1,1,1,1],
-                  [1,1,1,1,1,1,1,1,1,1,1],
-                  [1,1,1,1,1,1,1,1,1,1,1],
-                  [1,1,1,1,1,1,1,1,1,1,1],
-                  [1,1,1,1,1,1,1,1,1,1,1],
-                  [1,1,1,1,1,1,1,1,1,1,1],
-                  [1,1,1,1,1,1,1,1,1,1,1],
-                  [1,1,1,1,1,1,1,1,1,1,1],
-                  [1,1,1,1,1,1,1,1,1,1,1],
-                  [1,1,1,1,1,1,1,1,1,1,1],
-                  [1,1,1,1,1,1,1,1,1,1,1],
-                  [1,1,1,1,1,1,1,1,1,1,1],
-                  [1,1,1,1,1,1,1,1,1,1,1],
-                  [1,1,1,1,1,1,1,1,1,1,1],
-                  [0,0,0,0,0,0,0,0,0,0,0],
-                  [0,0,0,0,0,0,0,0,0,0,0],
-                  [0,0,0,0,0,0,0,0,0,0,0],
-                  [0,0,0,0,0,0,0,0,0,0,0],
-                  [0,0,0,0,0,0,0,0,0,0,0],
-                  [0,0,0,0,0,0,0,0,0,0,0],
-                  [0,0,0,0,0,0,0,0,0,0,0],
-                  [0,0,0,0,0,0,0,0,0,0,0],
-                  [0,0,0,0,0,0,0,0,0,0,0],
-                  [0,0,0,0,0,0,0,0,0,0,0],
-                  [0,0,0,0,0,0,0,0,0,0,0],
-                  [0,0,0,0,0,0,0,0,0,0,0],
-                  [0,0,0,0,0,0,0,0,0,0,0],
-                  [0,0,0,0,0,0,0,0,0,0,0],
-                  [0,0,0,0,0,0,0,0,0,0,0],
-                  [0,0,0,0,0,0,0,0,0,0,0],
-                  [0,0,0,0,0,0,0,0,0,0,0]];
-    if (SERVER) {FB_GRID.child('state').set(this.state);}
-    that = this;
-    FB_GRID.child('state').on("value",function(s) {
-        that.state = s.val();
-    });
-}
+var grid = synchronized(
+    {score: 0,
+     G:     [[1,1,1,1,1,1,1,1,1,1,1],
+             [1,1,1,1,1,1,1,1,1,1,1],
+             [1,1,1,1,1,1,1,1,1,1,1],
+             [1,1,1,1,1,1,1,1,1,1,1],
+             [1,1,1,1,1,1,1,1,1,1,1],
+             [1,1,1,1,1,1,1,1,1,1,1],
+             [1,1,1,1,1,1,1,1,1,1,1],
+             [1,1,1,1,1,1,1,1,1,1,1],
+             [1,1,1,1,1,1,1,1,1,1,1],
+             [1,1,1,1,1,1,1,1,1,1,1],
+             [1,1,1,1,1,1,1,1,1,1,1],
+             [1,1,1,1,1,1,1,1,1,1,1],
+             [1,1,1,1,1,1,1,1,1,1,1],
+             [1,1,1,1,1,1,1,1,1,1,1],
+             [1,1,1,1,1,1,1,1,1,1,1],
+             [1,1,1,1,1,1,1,1,1,1,1],
+             [1,1,1,1,1,1,1,1,1,1,1],
+             [0,0,0,0,0,0,0,0,0,0,0],
+             [0,0,0,0,0,0,0,0,0,0,0],
+             [0,0,0,0,0,0,0,0,0,0,0],
+             [0,0,0,0,0,0,0,0,0,0,0],
+             [0,0,0,0,0,0,0,0,0,0,0],
+             [0,0,0,0,0,0,0,0,0,0,0],
+             [0,0,0,0,0,0,0,0,0,0,0],
+             [0,0,0,0,0,0,0,0,0,0,0],
+             [0,0,0,0,0,0,0,0,0,0,0],
+             [0,0,0,0,0,0,0,0,0,0,0],
+             [0,0,0,0,0,0,0,0,0,0,0],
+             [0,0,0,0,0,0,0,0,0,0,0],
+             [0,0,0,0,0,0,0,0,0,0,0],
+             [0,0,0,0,0,0,0,0,0,0,0],
+             [0,0,0,0,0,0,0,0,0,0,0],
+             [0,0,0,0,0,0,0,0,0,0,0],
+             [0,0,0,0,0,0,0,0,0,0,0]]
+    }, FB_GRID,
+    function() {
+	this.rows = 34;
+	this.cols = 11;
+	this.scoreboard = new scoreboard(this.score);
+	this.entities.push(this);
+    }
+)
 
 grid.prototype.update = function(delta) {}
 
 grid.prototype.set = function(row,col,color) {
-    if (!SERVER) {
-	return
-    }
-    FB_GRID.child('state/' + row + '/' + col).set(color);
+    var G = this.G;
+    G[row][col] = color;
+    this.G = G;
 }
 
 grid.prototype.drawOn = function(layers) {
-    for(var row=0; row < this.state.length; row++) {
-        for (var col = 0; col < this.state[row].length; col ++) {
-            if (this.state[row][col] == 0) {
+    for(var row=0; row < this.G.length; row++) {
+        for (var col = 0; col < this.G[row].length; col ++) {
+            if (this.G[row][col] == 0) {
                 var color = "black"
             } else {
                 var color = "white"
@@ -274,7 +316,7 @@ grid.prototype.checkCollisions = function(piece, checkpoints) {
             if (row < 0 || row >= GRID_H) {
                 continue;
             }
-            if (this.state[row][col] == pieceType) {
+            if (this.G[row][col] == pieceType) {
                 return true;
             }
         }
@@ -305,29 +347,29 @@ grid.prototype.freeze = function(piece) {
     if (pieceType == 0) { testRows = testRows.reverse(); }
     
     // Check for complete rows:
-    var state = this.state;
+    var G = this.G;
     var hoffset = 0;
     for (var i = 0; i < testRows.length; i++) {
         var row = testRows[i];
-        if (state[row].every(function(cell,i,ary){return(cell == pieceType)})) {
-            state.splice(row,1);
+        if (G[row].every(function(cell,i,ary){return(cell == pieceType)})) {
+            G.splice(row,1);
             highlight.row(row + hoffset);
             this.scoreboard.multiplier *= LINE_MULTIPLE;
             SPEED += LINE_BOOST;
             if (pieceType == 0) {
                 hoffset -= 1;
                 testRows = testRows.map(function(row,i,ary){return(row + 1)});
-                state.splice(0,0,[1,1,1,1,1,1,1,1,1,1,1]);
+                G.splice(0,0,[1,1,1,1,1,1,1,1,1,1,1]);
             }
             if (pieceType == 1) {
                 hoffset += 1;
                 testRows = testRows.map(function(row,i,ary){return(row - 1)});
-                state.push([0,0,0,0,0,0,0,0,0,0,0]);
+                G.push([0,0,0,0,0,0,0,0,0,0,0]);
             }
             
         }
     }
-    FB_GRID.child('state').set(state);
+    this.G = G;
 };
 
 grid.prototype.destroy = function() {this.destroyed = true;};
