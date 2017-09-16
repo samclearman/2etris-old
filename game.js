@@ -212,10 +212,11 @@ function synchronized(properties, fb_root, cls) {
     wrapper.prototype = synched_cls.prototype
     
     for (p in properties) {
-    	Object.defineProperty(synched_cls.prototype, p, {
-	    get: function() { return this._state[p]; },
+	let _p = p;
+    	Object.defineProperty(synched_cls.prototype, _p, {
+	    get: function() { return this._state[_p]; },
 	    set: function(val) {
-		this._state[p] = val;
+		this._state[_p] = val;
 		if (SERVER) {
 		    this._state_ref.set(this._state);
 		}
