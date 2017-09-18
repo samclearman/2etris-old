@@ -194,9 +194,20 @@ function synchronized(properties, fb_root, cls) {
 	this._state_ref = state_ref;
 	that = this;
 	this._state_ref.on("value",function(s) {
+	    if (s.val() === null) {
+		that.on_destroy();
+		return;
+	    }
             that._state = s.val();
 	});
 	cls.call(this);
+    }
+
+    synched_cls.prototype.destroy = function () {
+	if (SERVER) {
+	    this._stateRef.off("value", this.fbStateCallback);
+	    this._stateRef.remove();
+	}
     }
     
     let wrapper = function(state) {
@@ -429,77 +440,36 @@ block.prototype.destroy = function() { this.destroyed = true; };
 ****************************/
 
 
-function tetromino(state, ref) {
-    this._state = Object.assign({
+let tetromino = synchronized(
+    {
 	x: 0,
 	y: 0,
 	color: "black",
 	shape: [[-1,0],[0,0],[0,1],[1,0]],
 	velocity: {x: 0, y: 0},
-    }, state);
-    this._stateRef = ref || FB_TETROMINOS.push(this._state);
-    
-    this.width = BLOCK_SIZE;
-    this.height = BLOCK_SIZE;
-    this.blocks = [];
-    this.turbo = 1;
-    for(var i=0; i < this._state['shape'].length; i++) {
-        blk = new block(this._state['x'] + (this._state['shape'][i][0] * BLOCK_SIZE) , this._state['y'] + (this._state['shape'][i][1] * BLOCK_SIZE), this._state['color'])
-        this.blocks.push(blk)
-    }
-
-    // All of these handlers have to be stored on the object so that they can be cleaned up on destroy
-    var that = this;
-    this.keyDownListener = function(e) { e.preventDefault(); that.handleKeyDown(e);};
-    this.keyUpListener = function(e) { e.preventDefault(); that.handleKeyUp(e,that);};
-    window.addEventListener("keyup", this.keyUpListener);
-    window.addEventListener("keydown", this.keyDownListener);
-    
-    this.fbMoveListener = function(d) { that.handleFbMove(d.val()); };
-    FB_MOVES_LIST.on("child_added", this.fbMoveListener)
-
-    this.fbStateCallback = function(s) {
-	if (s.val() === null) {
-	    that.destroy();
-	    return;
+    },
+    FB_TETROMINOS,
+    function () {
+	this.width = BLOCK_SIZE;
+	this.height = BLOCK_SIZE;
+	this.blocks = [];
+	this.turbo = 1;
+	for(var i=0; i < this._state['shape'].length; i++) {
+            blk = new block(this._state['x'] + (this._state['shape'][i][0] * BLOCK_SIZE) , this._state['y'] + (this._state['shape'][i][1] * BLOCK_SIZE), this._state['color'])
+            this.blocks.push(blk)
 	}
-        that._state = s.val();
+
+	// All of these handlers have to be stored on the object so that they can be cleaned up on destroy
+	var that = this;
+	this.keyDownListener = function(e) { e.preventDefault(); that.handleKeyDown(e);};
+	this.keyUpListener = function(e) { e.preventDefault(); that.handleKeyUp(e,that);};
+	window.addEventListener("keyup", this.keyUpListener);
+	window.addEventListener("keydown", this.keyDownListener);
+	
+	this.fbMoveListener = function(d) { that.handleFbMove(d.val()); };
+	FB_MOVES_LIST.on("child_added", this.fbMoveListener);
     }
-    this._stateRef.on("value", this.fbStateCallback);
-    
-}
-
-Object.defineProperty(tetromino.prototype, 'x', {
-    get: function() { return this._state['x']; },
-    set: function(x) {
-	this._state['x'] = x;
-	if (SERVER) {
-	    this._stateRef.set(this._state);
-	}
-    }
-});
-
-Object.defineProperty(tetromino.prototype, 'y', {
-    get: function() { return this._state['y']; },
-    set: function(y) {
-	this._state['y'] = y;
-	if (SERVER) {
-	    this._stateRef.set(this._state);
-	}
-    }
-});
-
-Object.defineProperty(tetromino.prototype, 'color', {
-    get: function() { return this._state['color']; }
-});
-
-Object.defineProperty(tetromino.prototype, 'shape', {
-    get: function() { return this._state['shape']; }
-});
-
-Object.defineProperty(tetromino.prototype, 'velocity', {
-    get: function() { return this._state['velocity']; }
-});		      		      
+);
 
 tetromino.prototype.positionBlocks = function() {
     for(var i=0; i < this.blocks.length; i++) {
@@ -642,12 +612,8 @@ tetromino.prototype.rotate = function(M) {
     
 };
 
-tetromino.prototype.destroy = function() {
+tetromino.prototype.on_destroy = function() {
     this.destroyed = true;
-    if (SERVER) {
-	this._stateRef.off("value", this.fbStateCallback);
-	this._stateRef.remove();
-    }
     window.removeEventListener("keyup", this.keyUpListener);
     window.removeEventListener("keydown", this.keyDownListener);
 }
