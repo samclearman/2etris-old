@@ -44,7 +44,7 @@ if (((new URL(document.location)).searchParams).get('server') == "true") {
 
 var FB_MOVES_LIST = firebase.database().ref('moves_list');
 var FB_GRID = firebase.database().ref('grid');
-var FB_TETROMINOS = firebase.database().ref('tetromoinos_list');
+var FB_TETROMINOS = firebase.database().ref('tetrominos_list');
 if (SERVER) {
     FB_MOVES_LIST.remove();
     FB_GRID.remove();
@@ -89,13 +89,15 @@ function game() {
 	    return
 	}
         var shape = eval(JSON.stringify(SHAPES[Math.floor(SHAPES.length * Math.random())]));
+	var y = 0;
+	var v = 0;
         if (color == "black") {
-            var y = -1 * BLOCK_SIZE;
-            var v = {x: 0, y: BLOCK_SIZE};
+            y = -1 * BLOCK_SIZE;
+            v = {x: 0, y: BLOCK_SIZE};
         }
         if (color == "white") {
-            var y = GRID_H * BLOCK_SIZE;
-            var v = {x: 0, y: (-1 * BLOCK_SIZE)};
+            y = GRID_H * BLOCK_SIZE;
+            v = {x: 0, y: (-1 * BLOCK_SIZE)};
         }
         entities.push(new tetromino({
 	    shape: shape,
@@ -116,7 +118,6 @@ function game() {
         var g = new grid();
         tetromino.prototype.grid = function() { return g; };
         entities.push(g);
-	FB_TETROMINOS.remove();
         tetromino.generate("black");
         tetromino.generate("white");
     }
@@ -188,11 +189,15 @@ function game() {
 }
 
 function synchronized(properties, fb_root, cls) {
+
+    if (SERVER) {
+	fb_root.remove();
+    }
     
     let synched_cls = function (state, state_ref) {
 	this._state = state;
 	this._state_ref = state_ref;
-	that = this;
+	let that = this;
 	this._state_ref.on("value",function(s) {
 	    if (s.val() === null) {
 		that.on_destroy();
@@ -205,9 +210,10 @@ function synchronized(properties, fb_root, cls) {
 
     synched_cls.prototype.destroy = function () {
 	if (SERVER) {
-	    this._stateRef.off("value", this.fbStateCallback);
-	    this._stateRef.remove();
+	    this._state_ref.off("value", this.fbStateCallback);
+	    this._state_ref.remove();
 	}
+	this.on_destroy();
     }
     
     let wrapper = function(state) {
@@ -233,10 +239,12 @@ function synchronized(properties, fb_root, cls) {
 	    }
 	});
     });
-    
+
+    if (!SERVER) {
     fb_root.on('child_added', function(child) {
 	new synched_cls(child.val(), child.ref);
     });
+    }
 
     return wrapper;
  
@@ -289,7 +297,6 @@ var grid = synchronized(
 	this.rows = 34;
 	this.cols = 11;
 	this.scoreboard = new scoreboard(this.score);
-	this.entities.push(this);
     }
 )
 
@@ -316,7 +323,7 @@ grid.prototype.drawOn = function(layers) {
 
 grid.prototype.checkCollisions = function(piece, checkpoints) {
     var pieceType = piece._state['color'] == "black" ? 0 : 1;
-    checkpoints = checkpoints ||["NW","NE","SW","SE"]
+    checkpoints = checkpoints || ["NW","NE","SW","SE"]
     for (var i = 0; i < piece.blocks.length; i++) {
         for (corner of checkpoints) {
             var row = Math.floor(piece.blocks[i][corner]().y / BLOCK_SIZE);
@@ -383,7 +390,7 @@ grid.prototype.freeze = function(piece) {
     this.G = G;
 };
 
-grid.prototype.destroy = function() {this.destroyed = true;};
+grid.prototype.on_destroy = function() {this.destroyed = true;};
 
 /****************************
 *                           *
@@ -483,7 +490,6 @@ tetromino.prototype.update = function(delta) {
     if (this.frozen && new Date().getTime() - this.frozen > 1000 * FREEZE_DELAY) {
         this.grid().freeze(this);
         this.destroy();
-        tetromino.generate(this.color);
     }
     
     this.x += this.velocity.x * delta * SPEED * this.turbo;
@@ -614,6 +620,7 @@ tetromino.prototype.rotate = function(M) {
 
 tetromino.prototype.on_destroy = function() {
     this.destroyed = true;
+    tetromino.generate(this.color);
     window.removeEventListener("keyup", this.keyUpListener);
     window.removeEventListener("keydown", this.keyDownListener);
 }
