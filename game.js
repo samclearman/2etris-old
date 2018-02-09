@@ -1,4 +1,4 @@
-var DEBUG = false;
+var DEBUG = true;
 
 var GRID_H = 34;
 var GRID_W = 11;
@@ -77,8 +77,7 @@ function game() {
         bgBlocks: {z: 1, drawings: []},
         blocks: {z: 3, drawings: []},
         effects: {z: 5, drawings: []}
-    };
-    
+    };    
     
     DEBUG = {}
     DEBUG.entities = entities;
@@ -100,52 +99,42 @@ function game() {
             v = {x: 0, y: (-1 * BLOCK_SIZE)};
         }
         entities.push(new tetromino({
-	    shape: shape,
-	    width: 5*BLOCK_SIZE,
-	    x: Math.floor(GRID_W/2) * BLOCK_SIZE,
-	    y: y,
-	    velocity: v,
-	    color: color
-	}));
+            shape: shape,
+            width: 5*BLOCK_SIZE,
+            x: Math.floor(GRID_W/2) * BLOCK_SIZE,
+            y: y,
+            velocity: v,
+            color: color
+        }));
     }
-    
+
     highlight.row = function(row) {
-        var rgb = HIGHLIGHT_COLORS[Math.floor(HIGHLIGHT_COLORS.length * Math.random())];
+        var rgb = random_element_of(HIGHLIGHT_COLORS)
         entities.push(new highlight(0, row * BLOCK_SIZE, BLOCK_SIZE, GRID_W * BLOCK_SIZE, rgb, .5));
     };
-    
+
     function setup() {
-        var g = new grid();
+        var g = new_grid();
         tetromino.prototype.grid = function() { return g; };
         entities.push(g);
         tetromino.generate("black");
         tetromino.generate("white");
     }
 
-    function init() {
-	var g = new grid();
-	tetromino.prototype.grid = function() { return g; };
-	entities.push(g);
-	FB_TETROMINOS.on('child_added', function(fb_tet) {
-	    entities.push(new tetromino(fb_tet.val(), fb_tet.ref));
-	});
-    }
-    
-    SERVER ? setup() : init();
-	
-    
+    if (SERVER) setup();
+
     function update(delta) {
-        
+
         for(var i=0; i<entities.length; i++) {
             entities[i].update(delta);
         }
-        
+
         for(var i = entities.length - 1; i >= 0; i--) {
             if (entities[i].destroyed) {
                 entities.splice(i,1);
             }
         }
-                
+
     }
 
     function draw() {
@@ -153,7 +142,7 @@ function game() {
             entities[i].drawOn(layers);
         }
     }
-    
+
     function render() {
         for (var layerName in layers) {
             for (var i=0; i < layers[layerName].drawings.length; i++) {
@@ -175,7 +164,7 @@ function game() {
         lastFrame = now;
         BLOCKED = false
     }
-    
+
     function reset(){
         entities.forEach(function(e,a,i) {e.destroy()});
         update(0);
@@ -183,122 +172,89 @@ function game() {
         var lastFrame = new Date().getTime();
     }
     document.getElementById('reset_button').addEventListener("click", reset);
-    
+
     var loopId = setInterval(loop, 16);
-    
+
 }
 
 function synchronized(properties, fb_root, cls) {
 
     if (SERVER) {
-	fb_root.remove();
+        fb_root.remove();
     }
-    
+
     let synched_cls = function (state, state_ref) {
-	this._state = state;
-	this._state_ref = state_ref;
-	let that = this;
-	this._state_ref.on("value",function(s) {
-	    if (s.val() === null) {
-		that.on_destroy();
-		return;
-	    }
+        this._state = state;
+        this._state_ref = state_ref;
+        let that = this;
+        this._state_ref.on("value",function(s) {
+            if (s.val() === null) {
+               that.on_destroy();
+               return;
+            }
             that._state = s.val();
-	});
-	cls.call(this);
+        });
+        cls.call(this);
     }
+
+    synched_cls.prototype = cls.prototype;
 
     synched_cls.prototype.destroy = function () {
-	if (SERVER) {
-	    this._state_ref.off("value", this.fbStateCallback);
-	    this._state_ref.remove();
-	}
-	this.on_destroy();
-    }
-    
-    let wrapper = function(state) {
-	state = state || {};
-	state = Object.assign(properties, state);
-	if(!SERVER) {
-	    return null;
-	}
-	let state_ref = fb_root.push(state);
-	return new synched_cls(state, state_ref);
+        if (SERVER) {
+            this._state_ref.off("value", this.fbStateCallback);
+            this._state_ref.remove();
+        }
+        this.on_destroy();
     }
 
-    wrapper.prototype = synched_cls.prototype
-    
+    let wrapper = function(state) {
+        state = state || {};
+        state = Object.assign(properties, state);
+        if(!SERVER) {
+            return null;
+        }
+        let state_ref = fb_root.push(state);
+        return new synched_cls(state, state_ref);
+    }
+
+    wrapper.prototype = cls.prototype
+
+
     Object.keys(properties).forEach(p => {
-    	Object.defineProperty(synched_cls.prototype, p, {
-	    get: function() { return this._state[p]; },
-	    set: function(val) {
-		this._state[p] = val;
-		if (SERVER) {
-		    this._state_ref.set(this._state);
-		}
-	    }
-	});
+        Object.defineProperty(synched_cls.prototype, p, {
+            get: function() {
+                return this._state[p];
+            },
+            set: function(val) {
+                this._state[p] = val;
+                if (SERVER) {
+                    this._state_ref.set(this._state);
+                }
+            }
+        });
     });
 
     if (!SERVER) {
     fb_root.on('child_added', function(child) {
-	new synched_cls(child.val(), child.ref);
+        new synched_cls(child.val(), child.ref);
     });
     }
 
     return wrapper;
- 
+
 };
-    
+
 /****************************
 *                           *
 *   Grid class              *
 *                           *
 ****************************/
 
-var grid = synchronized(
-    {score: 0,
-     G:     [[1,1,1,1,1,1,1,1,1,1,1],
-             [1,1,1,1,1,1,1,1,1,1,1],
-             [1,1,1,1,1,1,1,1,1,1,1],
-             [1,1,1,1,1,1,1,1,1,1,1],
-             [1,1,1,1,1,1,1,1,1,1,1],
-             [1,1,1,1,1,1,1,1,1,1,1],
-             [1,1,1,1,1,1,1,1,1,1,1],
-             [1,1,1,1,1,1,1,1,1,1,1],
-             [1,1,1,1,1,1,1,1,1,1,1],
-             [1,1,1,1,1,1,1,1,1,1,1],
-             [1,1,1,1,1,1,1,1,1,1,1],
-             [1,1,1,1,1,1,1,1,1,1,1],
-             [1,1,1,1,1,1,1,1,1,1,1],
-             [1,1,1,1,1,1,1,1,1,1,1],
-             [1,1,1,1,1,1,1,1,1,1,1],
-             [1,1,1,1,1,1,1,1,1,1,1],
-             [1,1,1,1,1,1,1,1,1,1,1],
-             [0,0,0,0,0,0,0,0,0,0,0],
-             [0,0,0,0,0,0,0,0,0,0,0],
-             [0,0,0,0,0,0,0,0,0,0,0],
-             [0,0,0,0,0,0,0,0,0,0,0],
-             [0,0,0,0,0,0,0,0,0,0,0],
-             [0,0,0,0,0,0,0,0,0,0,0],
-             [0,0,0,0,0,0,0,0,0,0,0],
-             [0,0,0,0,0,0,0,0,0,0,0],
-             [0,0,0,0,0,0,0,0,0,0,0],
-             [0,0,0,0,0,0,0,0,0,0,0],
-             [0,0,0,0,0,0,0,0,0,0,0],
-             [0,0,0,0,0,0,0,0,0,0,0],
-             [0,0,0,0,0,0,0,0,0,0,0],
-             [0,0,0,0,0,0,0,0,0,0,0],
-             [0,0,0,0,0,0,0,0,0,0,0],
-             [0,0,0,0,0,0,0,0,0,0,0],
-             [0,0,0,0,0,0,0,0,0,0,0]]
-    }, FB_GRID,
-    function() {
-	this.rows = 34;
-	this.cols = 11;
-	this.scoreboard = new scoreboard(this.score);
+var grid = function() {
+        this.rows = 34;
+        this.cols = 11;
+        this.scoreboard = new scoreboard(this.score);
     }
-)
 
 grid.prototype.update = function(delta) {}
 
@@ -344,26 +300,26 @@ grid.prototype.checkCollisions = function(piece, checkpoints) {
 
 grid.prototype.freeze = function(piece) {
     this.scoreboard.add(BLOCK_SCORE);
-       
+
     var pieceType = piece.color == "black" ? 0 : 1;
     var testRows = [];
     for (var i = 0; i < piece.blocks.length; i++) {
         row = Math.floor(piece.blocks[i].center().y / BLOCK_SIZE);
         col = Math.floor(piece.blocks[i].center().x / BLOCK_SIZE);
         if (row < 0 || row > GRID_H - 1) {
-	    RUNNING = false;
-	    console.log("game over");
-	    return;
-	}
+            RUNNING = false;
+            console.log("game over");
+            return;
+        }
         this.set(row, col, pieceType);
         testRows.push(row);
     }
-    
+
     testRows =  testRows.sort().filter(function(item, pos) {
         return !pos || item != testRows[pos - 1];
     });
     if (pieceType == 0) { testRows = testRows.reverse(); }
-    
+
     // Check for complete rows:
     var G = this.G;
     var hoffset = 0;
@@ -384,13 +340,54 @@ grid.prototype.freeze = function(piece) {
                 testRows = testRows.map(function(row,i,ary){return(row - 1)});
                 G.push([0,0,0,0,0,0,0,0,0,0,0]);
             }
-            
+
         }
     }
     this.G = G;
 };
 
 grid.prototype.on_destroy = function() {this.destroyed = true;};
+
+var new_grid = synchronized(
+    {score: 0,
+     G:     [[1,1,1,1,1,1,1,1,1,1,1],
+             [1,1,1,1,1,1,1,1,1,1,1],
+             [1,1,1,1,1,1,1,1,1,1,1],
+             [1,1,1,1,1,1,1,1,1,1,1],
+             [1,1,1,1,1,1,1,1,1,1,1],
+             [1,1,1,1,1,1,1,1,1,1,1],
+             [1,1,1,1,1,1,1,1,1,1,1],
+             [1,1,1,1,1,1,1,1,1,1,1],
+             [1,1,1,1,1,1,1,1,1,1,1],
+             [1,1,1,1,1,1,1,1,1,1,1],
+             [1,1,1,1,1,1,1,1,1,1,1],
+             [1,1,1,1,1,1,1,1,1,1,1],
+             [1,1,1,1,1,1,1,1,1,1,1],
+             [1,1,1,1,1,1,1,1,1,1,1],
+             [1,1,1,1,1,1,1,1,1,1,1],
+             [1,1,1,1,1,1,1,1,1,1,1],
+             [1,1,1,1,1,1,1,1,1,1,1],
+             [0,0,0,0,0,0,0,0,0,0,0],
+             [0,0,0,0,0,0,0,0,0,0,0],
+             [0,0,0,0,0,0,0,0,0,0,0],
+             [0,0,0,0,0,0,0,0,0,0,0],
+             [0,0,0,0,0,0,0,0,0,0,0],
+             [0,0,0,0,0,0,0,0,0,0,0],
+             [0,0,0,0,0,0,0,0,0,0,0],
+             [0,0,0,0,0,0,0,0,0,0,0],
+             [0,0,0,0,0,0,0,0,0,0,0],
+             [0,0,0,0,0,0,0,0,0,0,0],
+             [0,0,0,0,0,0,0,0,0,0,0],
+             [0,0,0,0,0,0,0,0,0,0,0],
+             [0,0,0,0,0,0,0,0,0,0,0],
+             [0,0,0,0,0,0,0,0,0,0,0],
+             [0,0,0,0,0,0,0,0,0,0,0],
+             [0,0,0,0,0,0,0,0,0,0,0],
+             [0,0,0,0,0,0,0,0,0,0,0]]
+    }, FB_GRID,
+    grid
+)
+
 
 /****************************
 *                           *
@@ -432,7 +429,7 @@ block.prototype.update = function(delta) { };
 
 block.prototype.drawOn = function(layers) {
     var that = this;
-    layers[this.blockLayer].drawings.push(function(ctx) {   
+    layers[this.blockLayer].drawings.push(function(ctx) {
         ctx.fillStyle = that.color;
         ctx.fillRect(that.screenX(), that.screenY(), that.width, that.height);
     });
@@ -449,32 +446,42 @@ block.prototype.destroy = function() { this.destroyed = true; };
 
 let tetromino = synchronized(
     {
-	x: 0,
-	y: 0,
-	color: "black",
-	shape: [[-1,0],[0,0],[0,1],[1,0]],
-	velocity: {x: 0, y: 0},
+        x: 0,
+        y: 0,
+        color: "black",
+        shape: [[-1,0],[0,0],[0,1],[1,0]],
+        velocity: {x: 0, y: 0},
     },
     FB_TETROMINOS,
     function () {
-	this.width = BLOCK_SIZE;
-	this.height = BLOCK_SIZE;
-	this.blocks = [];
-	this.turbo = 1;
-	for(var i=0; i < this._state['shape'].length; i++) {
+        this.width = BLOCK_SIZE;
+        this.height = BLOCK_SIZE;
+        this.blocks = [];
+        this.turbo = 1;
+        for(var i=0; i < this._state['shape'].length; i++) {
             blk = new block(this._state['x'] + (this._state['shape'][i][0] * BLOCK_SIZE) , this._state['y'] + (this._state['shape'][i][1] * BLOCK_SIZE), this._state['color'])
             this.blocks.push(blk)
-	}
+        }
 
-	// All of these handlers have to be stored on the object so that they can be cleaned up on destroy
-	var that = this;
-	this.keyDownListener = function(e) { e.preventDefault(); that.handleKeyDown(e);};
-	this.keyUpListener = function(e) { e.preventDefault(); that.handleKeyUp(e,that);};
-	window.addEventListener("keyup", this.keyUpListener);
-	window.addEventListener("keydown", this.keyDownListener);
-	
-	this.fbMoveListener = function(d) { that.handleFbMove(d.val()); };
-	FB_MOVES_LIST.on("child_added", this.fbMoveListener);
+        // All of these handlers have to be stored on the object so that they can be cleaned up on destroy
+        var that = this;
+        this.keyDownListener = function(e) { e.preventDefault(); that.handleKeyDown(e);};
+        this.keyUpListener = function(e) { e.preventDefault(); that.handleKeyUp(e,that);};
+        window.addEventListener("keyup", this.keyUpListener);
+        window.addEventListener("keydown", this.keyDownListener);
+
+        this.fbMoveListener = function(d) {
+            if (!that) {
+                console.log("no that");
+            }
+            if (!that.handleFbMove) {
+                console.log("no handler");
+                console.log(that);
+                console.log(that.prototype);
+            }
+            that.handleFbMove(d.val());
+        };
+        FB_MOVES_LIST.on("child_added", this.fbMoveListener);
     }
 );
 
@@ -486,16 +493,16 @@ tetromino.prototype.positionBlocks = function() {
 };
 
 tetromino.prototype.update = function(delta) {
-    
+
     if (this.frozen && new Date().getTime() - this.frozen > 1000 * FREEZE_DELAY) {
         this.grid().freeze(this);
         this.destroy();
     }
-    
+
     this.x += this.velocity.x * delta * SPEED * this.turbo;
     this.y += this.velocity.y * delta * SPEED * this.turbo;
     this.positionBlocks();
-    
+
     if (this.grid().checkCollisions(this)) {
         this.x -= this.velocity.x * delta * this.turbo;
         this.y -= this.velocity.y * delta * this.turbo;
@@ -504,7 +511,7 @@ tetromino.prototype.update = function(delta) {
         this.frozen = this.frozen || new Date().getTime();
     } else {
         this.frozen = false;
-    } 
+    }
 };
 
 tetromino.prototype.drawOn = function(layers) {
@@ -516,10 +523,10 @@ tetromino.prototype.drawOn = function(layers) {
 tetromino.prototype.handleKeyDown = function(e) {
     switch(e.keyCode) {
     case CONTROLS[this.color]["turbo"]:
-	FB_MOVES_LIST.push({color: this.color, move: "turbo_on"});
+        FB_MOVES_LIST.push({color: this.color, move: "turbo_on"});
         break;
     }
-    
+
 };
 
 tetromino.prototype.handleKeyUp = function(e) {
@@ -536,7 +543,7 @@ tetromino.prototype.handleKeyUp = function(e) {
     case CONTROLS[this.color]["turbo"]:
         FB_MOVES_LIST.push({color: this.color, move: "turbo_off"});
         break;
-    } 
+    }
 };
 
 tetromino.prototype.handleFbMove = function(move) {
@@ -553,11 +560,11 @@ tetromino.prototype.handleFbMove = function(move) {
         break;
     case "turbo_on":
         this.turbo = TURBO_MULTIPLIER;
-	break;
+        break;
     case "turbo_off":
         this.turbo = 1;
         break;
-    } 
+    }
 };
 
 tetromino.prototype.shift = function(dir) {
@@ -576,7 +583,7 @@ tetromino.prototype.shift = function(dir) {
         this.x -= dir.x;
         this.y -= dir.y;
         this.positionBlocks();
-    
+
         // CHEATTT
         if (this.y % BLOCK_SIZE < 5 || BLOCK_SIZE - (this.y & BLOCK_SIZE) < 3) {
             var oldx = this.x;
@@ -603,19 +610,19 @@ tetromino.prototype.rotate = function(M) {
         M = [[0,1],[-1,0]];
         break;
     }
-    
+
     var oldShape = this.shape.slice(0);
-    
+
     for(var i=0; i < this.shape.length; i++) {
         this.shape[i] = mul(M,this.shape[i]);
     }
-    
+
     this.positionBlocks();
     if (this.grid().checkCollisions(this)) {
         this.shape = oldShape;
         this.positionBlocks();
     }
-    
+
 };
 
 tetromino.prototype.on_destroy = function() {
@@ -639,7 +646,7 @@ function highlight(x, y, height, width, rgb, duration) {
     this.width = width || 10;
     this.rgb = rgb || '255,255,0';
     this.duration = duration || 1;
-    
+
     this.color = "rgb(" + this.rgb + ")";
     this.created = new Date().getTime();
 }
@@ -652,7 +659,7 @@ highlight.prototype.update = function(delta) {
         var alpha = 1 - (elapsed / this.duration);
         this.color = "rgba(" + this.rgb + "," + alpha + ")";
     }
-    
+
 }
 
 highlight.prototype.destroy = function() { this.destroyed = true };
@@ -679,7 +686,7 @@ function scoreboard(score) {
 scoreboard.prototype.add = function(pts) {
     this.score += Math.floor(pts * this.multiplier);
     document.getElementById("score").textContent = this.score;
-    
+
     if (this.score > this.highscore) {
         this.highscore = this.score;
         localStorage.setItem("highscore", this.highscore);
