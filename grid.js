@@ -1,3 +1,8 @@
+var FB_GRID = firebase.database().ref('grid');
+if (SERVER) {
+    FB_GRID.remove();
+}
+
 /****************************
 *                           *
 *   Grid class              *
@@ -5,10 +10,12 @@
 ****************************/
 
 var grid = function() {
-        this.rows = 34;
-        this.cols = 11;
-        this.scoreboard = new scoreboard(this.score);
-    }
+    this.rows = 34;
+    this.cols = 11;
+    this.scoreboard = new scoreboard(this.score);
+    var that = this;
+    tetromino.prototype.grid = function() { return that; };   
+}
 
 grid.prototype.update = function(delta) {}
 
@@ -138,6 +145,7 @@ var new_grid = synchronized(
              [0,0,0,0,0,0,0,0,0,0,0],
              [0,0,0,0,0,0,0,0,0,0,0],
              [0,0,0,0,0,0,0,0,0,0,0]]
-    }, FB_GRID,
+    },
+    FB_GRID,
     grid
 )

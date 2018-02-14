@@ -128,6 +128,8 @@ tetromino.prototype.handleFbMove = function(move) {
     }
 };
 
+tetromino.prototype.grid = function() { return {checkCollisions: function(t){return false;}}; };
+
 tetromino.prototype.shift = function(dir) {
     switch (dir) {
     case "L":
